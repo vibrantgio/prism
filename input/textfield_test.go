@@ -4,14 +4,20 @@ import (
 	"image"
 	"testing"
 
+	"gioui.org/f32"
 	"gioui.org/font/gofont"
+	gioinput "gioui.org/io/input"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
 
+	"github.com/reactivego/rx"
 	"github.com/vibrantgio/prism/input"
 	golden "github.com/vibrantgio/prism/internal/golden"
+	"github.com/vibrantgio/prism/theme"
 	"github.com/vibrantgio/prism/tokens"
 )
 
@@ -44,6 +50,7 @@ func TestTextFieldGolden(t *testing.T) {
 		{"light-normal", tokens.DefaultLight, input.RenderState{}},
 		{"dark-normal", tokens.DefaultDark, input.RenderState{}},
 		{"light-focused", tokens.DefaultLight, input.RenderState{Focused: true}},
+		{"light-focused-with-text", tokens.DefaultLight, input.RenderState{Focused: true, Text: "hi"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -130,5 +137,145 @@ func TestTextFieldFocusRingIsVisuallyDistinct(t *testing.T) {
 	}
 	if n := golden.PixelDiff(imgNormal, imgFocused); n == 0 {
 		t.Error("focused and normal fields render identically; expected focus ring pixels to differ")
+	}
+}
+
+// ---- Behavioural tests ----
+
+// liveTextField subscribes to the TextField observable, drains the trampoline
+// scheduler with Wait(), and returns the first emitted layout.Widget. The
+// editor referenced by the widget closure remains valid for the remainder of
+// the test because it is captured by the rx.Defer scope.
+func liveTextField(t *testing.T, props input.TextFieldProps) layout.Widget {
+	t.Helper()
+	if props.Shaper == nil {
+		props.Shaper = defaultShaper(t)
+	}
+	obs := input.TextField(rx.Of(theme.Default()), props)
+	var w layout.Widget
+	if err := obs.Subscribe(func(next layout.Widget, _ error, done bool) {
+		if !done && next != nil {
+			w = next
+		}
+	}, rx.NewScheduler()).Wait(); err != nil {
+		t.Fatalf("TextField subscribe: %v", err)
+	}
+	if w == nil {
+		t.Fatal("TextField did not emit an initial widget")
+	}
+	return w
+}
+
+// driveTextFieldFrame lays out the widget against a fresh op.Ops + router and
+// returns the rendered dimensions. ops is reset before layout.
+func driveTextFieldFrame(w layout.Widget, ops *op.Ops, r *gioinput.Router, size image.Point) layout.Dimensions {
+	ops.Reset()
+	gtx := layout.Context{
+		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
+		Constraints: layout.Exact(size),
+		Ops:         ops,
+		Source:      r.Source(),
+	}
+	dims := w(gtx)
+	r.Frame(ops)
+	return dims
+}
+
+// TestTextFieldSubmitFiresCallbacksAndClears drives a real key.EditEvent with a
+// trailing newline through a focused TextField in submit mode and verifies that
+// SubmitMessage and OnSubmit fire with the editor's text and that the editor
+// is cleared on the following frame (Measurable a + b).
+func TestTextFieldSubmitFiresCallbacksAndClears(t *testing.T) {
+	var (
+		gotSubmit  string
+		gotMessage string
+		gotChanges []string
+	)
+	props := input.TextFieldProps{
+		Submit:        true,
+		SubmitMessage: func(s string) any { gotMessage = s; return s },
+		OnSubmit:      func(s string) { gotSubmit = s },
+		OnChange:      func(s string) { gotChanges = append(gotChanges, s) },
+	}
+	w := liveTextField(t, props)
+
+	r := new(gioinput.Router)
+	ops := new(op.Ops)
+	size := image.Pt(300, 60)
+
+	// Frame 1 — register the editor's pointer/keyboard regions.
+	dims := driveTextFieldFrame(w, ops, r, size)
+
+	// Click inside the field; the editor self-focuses on press.
+	centre := f32.Pt(float32(dims.Size.X)/2, float32(dims.Size.Y)/2)
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+		pointer.Event{Kind: pointer.Release, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+	)
+
+	// Frame 2 — editor processes the press and requests focus.
+	driveTextFieldFrame(w, ops, r, size)
+
+	// Type "hi\n"; the trailing newline triggers a SubmitEvent because
+	// editor.Submit is true.
+	r.Queue(key.EditEvent{Range: key.Range{Start: 0, End: 0}, Text: "hi\n"})
+
+	// Frame 3 — editor delivers ChangeEvent + SubmitEvent. Our handler runs
+	// SubmitMessage/OnSubmit then clears the editor; the clear in turn marks
+	// the buffer changed for the next Update.
+	driveTextFieldFrame(w, ops, r, size)
+
+	if gotSubmit != "hi" {
+		t.Errorf("OnSubmit got %q, want %q", gotSubmit, "hi")
+	}
+	if gotMessage != "hi" {
+		t.Errorf("SubmitMessage called with %q, want %q", gotMessage, "hi")
+	}
+
+	// Frame 4 — the SetText("") performed during submit produces a follow-up
+	// ChangeEvent with the (now empty) text. Observers see the field cleared.
+	driveTextFieldFrame(w, ops, r, size)
+
+	if len(gotChanges) == 0 {
+		t.Fatalf("expected at least one OnChange call, got none")
+	}
+	if last := gotChanges[len(gotChanges)-1]; last != "" {
+		t.Errorf("editor not cleared after submit: last OnChange = %q, want %q", last, "")
+	}
+}
+
+// TestTextFieldChangeEventStillFiresWithoutSubmit confirms callers without
+// Submit: true continue to see ChangeEvent-driven OnChange/Message dispatch
+// (Measurable c — no behavioural regression). The exported MessageOp collector
+// is unreachable from outside mvu, so OnChange (which sits on the same code
+// path one branch above the Message dispatch) is used as the live proxy.
+func TestTextFieldChangeEventStillFiresWithoutSubmit(t *testing.T) {
+	var got []string
+	props := input.TextFieldProps{
+		Message:  "ping",
+		OnChange: func(s string) { got = append(got, s) },
+	}
+	w := liveTextField(t, props)
+
+	r := new(gioinput.Router)
+	ops := new(op.Ops)
+	size := image.Pt(300, 60)
+
+	dims := driveTextFieldFrame(w, ops, r, size)
+	centre := f32.Pt(float32(dims.Size.X)/2, float32(dims.Size.Y)/2)
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+		pointer.Event{Kind: pointer.Release, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+	)
+	driveTextFieldFrame(w, ops, r, size)
+
+	r.Queue(key.EditEvent{Range: key.Range{Start: 0, End: 0}, Text: "x"})
+	driveTextFieldFrame(w, ops, r, size)
+
+	if len(got) == 0 {
+		t.Fatalf("OnChange was not invoked; ChangeEvent path appears broken")
+	}
+	if got[len(got)-1] != "x" {
+		t.Errorf("OnChange got %q, want %q", got[len(got)-1], "x")
 	}
 }

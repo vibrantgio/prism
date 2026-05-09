@@ -33,6 +33,11 @@ const minHeight = unit.Dp(44)
 type RenderState struct {
 	Focused  bool
 	Disabled bool
+	// Text, when non-empty, is rendered in place of the placeholder using the
+	// text colour. It models a field that holds user input for the static
+	// render path; it has no effect on the live TextField, whose text is held
+	// by the inner widget.Editor.
+	Text string
 }
 
 // TextFieldProps configures a TextField instance.
@@ -53,6 +58,19 @@ type TextFieldProps struct {
 	// Message, if non-nil, causes the field to emit mvu.MessageOp{Message}
 	// on every text change. This is the MVU integration path.
 	Message any
+
+	// Submit, when true, configures the inner widget.Editor to translate
+	// carriage-return key presses into widget.SubmitEvent rather than
+	// inserting newlines. Required for chat-style inputs.
+	Submit bool
+
+	// SubmitMessage, if non-nil, is invoked on each submit and its return
+	// value is wrapped in mvu.MessageOp and emitted on the current frame.
+	SubmitMessage func(text string) any
+
+	// OnSubmit, if non-nil, is invoked on each submit with the editor's
+	// current text. After both callbacks run the editor is cleared.
+	OnSubmit func(text string)
 
 	// Shaper, if nil, defaults to a shaper backed by Go fonts.
 	Shaper *text.Shaper
@@ -93,7 +111,7 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 	return rx.Defer(func() rx.Observable[layout.Widget] {
 		// Allocated once per subscription — survives all theme and disabled
 		// emissions for the lifetime of this TextField instance.
-		editor := &widget.Editor{SingleLine: true}
+		editor := &widget.Editor{SingleLine: true, Submit: props.Submit}
 		shaper := props.Shaper
 		if shaper == nil {
 			shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))
@@ -107,13 +125,14 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 					gtx = gtx.Disabled()
 				}
 
-				// Drain editor events; fire callbacks on text change.
+				// Drain editor events; fire callbacks on text change and submit.
 				for {
 					ev, ok := editor.Update(gtx)
 					if !ok {
 						break
 					}
-					if _, ok := ev.(widget.ChangeEvent); ok {
+					switch ev := ev.(type) {
+					case widget.ChangeEvent:
 						val := editor.Text()
 						if props.OnChange != nil {
 							props.OnChange(val)
@@ -121,6 +140,14 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 						if props.Message != nil {
 							mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)
 						}
+					case widget.SubmitEvent:
+						if props.SubmitMessage != nil {
+							mvu.MessageOp{Message: props.SubmitMessage(ev.Text)}.Add(gtx.Ops)
+						}
+						if props.OnSubmit != nil {
+							props.OnSubmit(ev.Text)
+						}
+						editor.SetText("")
 					}
 				}
 
@@ -270,7 +297,7 @@ func drawTextFieldStatic(gtx layout.Context, shaper *text.Shaper, placeholder st
 	rad := gtx.Dp(unit.Dp(tok.radius.Md))
 	textSize := unit.Sp(tok.typ.BodyLarge)
 
-	bg, _, borderColor, phColor := textFieldColors(tok.color, s)
+	bg, textColor, borderColor, phColor := textFieldColors(tok.color, s)
 
 	fieldW := gtx.Constraints.Max.X
 	innerW := fieldW - 2*padH
@@ -284,14 +311,23 @@ func drawTextFieldStatic(gtx layout.Context, shaper *text.Shaper, placeholder st
 		Max: image.Pt(innerW, gtx.Constraints.Max.Y),
 	}
 
-	// Record placeholder label for measurement and deferred rendering.
-	mPhColor := op.Record(gtx.Ops)
-	paint.ColorOp{Color: phColor}.Add(gtx.Ops)
-	phMat := mPhColor.Stop()
+	// Record the inner label for measurement and deferred rendering. When
+	// RenderState.Text is non-empty it stands in for editor content (text
+	// colour); otherwise the placeholder is drawn.
+	labelText := placeholder
+	labelColor := phColor
+	if s.Text != "" {
+		labelText = s.Text
+		labelColor = textColor
+	}
+
+	mLabelColor := op.Record(gtx.Ops)
+	paint.ColorOp{Color: labelColor}.Add(gtx.Ops)
+	labelMat := mLabelColor.Stop()
 
 	mLabel := op.Record(gtx.Ops)
 	wl := widget.Label{MaxLines: 1}
-	labelDims := wl.Layout(innerGtx, shaper, font.Font{}, textSize, placeholder, phMat)
+	labelDims := wl.Layout(innerGtx, shaper, font.Font{}, textSize, labelText, labelMat)
 	labelCall := mLabel.Stop()
 
 	fieldH := labelDims.Size.Y + 2*padV

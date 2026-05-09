@@ -81,6 +81,9 @@ type gallery struct {
 	// Button page
 	btnClicks int
 
+	// Scroll state — one per page, allocated once so scroll position survives frames.
+	scrollSt [8]*list.State
+
 	// List page
 	listSt    *list.State
 	listItems []string
@@ -141,6 +144,9 @@ func run(w *app.Window) error {
 
 func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 	g := &gallery{win: w, shaper: shaper}
+	for i := range g.scrollSt {
+		g.scrollSt[i] = list.NewState()
+	}
 
 	// Static theme observable — emits once synchronously, so First() returns immediately.
 	th := rx.Of(theme.Default())
@@ -329,7 +335,7 @@ func (g *gallery) content(gtx layout.Context) layout.Dimensions {
 // ── Button page ───────────────────────────────────────────────────────────────
 
 func (g *gallery) pageButton(gtx layout.Context) layout.Dimensions {
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageButton], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{g.sectionHeader("Button — variant grid")}
 		cs = append(cs, g.buttonVariantRows()...)
 		cs = append(cs,
@@ -390,7 +396,7 @@ func (g *gallery) buttonVariantRows() []layout.FlexChild {
 // ── Inputs page ───────────────────────────────────────────────────────────────
 
 func (g *gallery) pageInputs(gtx layout.Context) layout.Dimensions {
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageInputs], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{g.sectionHeader("TextField — variants")}
 		cs = append(cs, g.textFieldVariantRows()...)
 		cs = append(cs,
@@ -574,7 +580,7 @@ func (g *gallery) dropdownVariantRows() []layout.FlexChild {
 // ── List page ─────────────────────────────────────────────────────────────────
 
 func (g *gallery) pageList(gtx layout.Context) layout.Dimensions {
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageList], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
 			g.sectionHeader(fmt.Sprintf("List — %d items, virtual scrolling", len(g.listItems))),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -595,7 +601,7 @@ func (g *gallery) pageList(gtx layout.Context) layout.Dimensions {
 // ── Icon page ─────────────────────────────────────────────────────────────────
 
 func (g *gallery) pageIcon(gtx layout.Context) layout.Dimensions {
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageIcon], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
 			g.sectionHeader("Icon — IVG render (material action-info, 64×64 px)"),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -652,7 +658,7 @@ func (g *gallery) pageLayout(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageLayout], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
 			g.sectionHeader("Layout — Row (horizontal flex with HSpacer gaps)"),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -714,7 +720,7 @@ func (g *gallery) pageA11y(gtx layout.Context) layout.Dimensions {
 		OnSurface:    color.NRGBA{0x00, 0x00, 0x00, 0xff},
 	}
 
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageA11y], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
 			g.sectionHeader("A11y — live OS accessibility preferences (polled every 2s)"),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -790,7 +796,7 @@ func (g *gallery) prefRow(gtx layout.Context, name string, value bool) layout.Di
 func (g *gallery) pageInitial(gtx layout.Context) layout.Dimensions {
 	firstFrame := g.initVal.GetOrSet(time.Now)
 
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageInitial], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
 			g.sectionHeader("Initial — first-frame value, set once and stable"),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -841,7 +847,7 @@ func (g *gallery) pageCoord(gtx layout.Context) layout.Dimensions {
 		received = "(none yet — click Send ping)"
 	}
 
-	return g.scrollPage(gtx, func(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageCoord], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
 			g.sectionHeader("Coordination — Subject[string] producer/consumer"),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -878,8 +884,7 @@ func (g *gallery) pageCoord(gtx layout.Context) layout.Dimensions {
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-func (g *gallery) scrollPage(gtx layout.Context, body func(layout.Context) layout.Dimensions) layout.Dimensions {
-	st := list.NewState()
+func (g *gallery) scrollPage(gtx layout.Context, st *list.State, body func(layout.Context) layout.Dimensions) layout.Dimensions {
 	items := []layout.Widget{body}
 	return list.Layout(gtx, st, items, func(gtx layout.Context, w layout.Widget) layout.Dimensions {
 		return w(gtx)

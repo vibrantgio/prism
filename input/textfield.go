@@ -243,8 +243,13 @@ func drawTextFieldLive(gtx layout.Context, shaper *text.Shaper, editor *widget.E
 	selMat := mSel.Stop()
 
 	// Editor — always laid out so it receives pointer/keyboard events.
+	// Min.X = innerW ensures the event clip covers the full field width even
+	// when the editor is empty (otherwise the clip shrinks to the caret width).
 	editorGtx := innerGtx
-	editorGtx.Constraints.Max.Y = contentDims.Size.Y
+	editorGtx.Constraints = layout.Constraints{
+		Min: image.Pt(innerW, 0),
+		Max: image.Pt(innerW, contentDims.Size.Y),
+	}
 	st := op.Offset(image.Pt(padH, offY)).Push(gtx.Ops)
 	editor.Layout(editorGtx, shaper, font.Font{}, textSize, textMat, selMat)
 	st.Pop()

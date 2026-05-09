@@ -1,0 +1,198 @@
+package input
+
+import (
+	"image"
+
+	"gioui.org/io/semantic"
+	"gioui.org/layout"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
+	"gioui.org/unit"
+	"gioui.org/widget"
+
+	"github.com/reactivego/rx"
+	"github.com/vibrantgio/mvu"
+	"github.com/vibrantgio/prism/theme"
+	"github.com/vibrantgio/prism/tokens"
+)
+
+// radioCircleSize is the outer diameter of the radio circle.
+const radioCircleSize = unit.Dp(20)
+
+// radioDotSize is the diameter of the inner selected dot.
+const radioDotSize = unit.Dp(10)
+
+// RadioRenderState holds explicit visual state for static rendering.
+// All fields default to false (normal/unselected/idle).
+// Intended for golden-image testing; production code obtains state from the
+// Gio event system via Radio.
+type RadioRenderState struct {
+	Selected bool
+	Focused  bool
+	Disabled bool
+}
+
+// RadioProps configures a Radio instance.
+type RadioProps struct {
+	// Description is the screen-reader label.
+	Description string
+
+	// Selected is the initial selected state established on subscribe.
+	Selected bool
+
+	// Disabled, if non-nil, disables the radio when it emits true.
+	Disabled rx.Observable[bool]
+
+	// OnChange is called with the new selected value on every toggle.
+	// This is the FRP callback path.
+	OnChange func(bool)
+
+	// Message, if non-nil, causes the radio to emit mvu.MessageOp{Message}
+	// on every toggle. This is the MVU integration path.
+	Message any
+}
+
+// Radio returns an rx.Observable[layout.Widget] that emits a new widget
+// whenever the theme or disabled state changes. Widget state (selected value,
+// focus) lives in the rx.Defer scope and persists across emissions.
+//
+// Both integration paths are supported:
+//   - FRP: set RadioProps.OnChange.
+//   - MVU: set RadioProps.Message; the component emits mvu.MessageOp on toggle.
+func Radio(th rx.Observable[theme.Theme], props RadioProps) rx.Observable[layout.Widget] {
+	disabled := props.Disabled
+	if disabled == nil {
+		disabled = rx.Of(false)
+	}
+
+	resolved := rx.SwitchMap(th, func(t theme.Theme) rx.Observable[resolvedTokens] {
+		return rx.Map(
+			rx.CombineLatest4(t.Color, t.Type, t.Spacing, t.Radius),
+			func(n rx.Tuple4[tokens.ColorTokens, tokens.TypeScale, tokens.SpacingScale, tokens.RadiusScale]) resolvedTokens {
+				return resolvedTokens{n.First, n.Second, n.Third, n.Fourth}
+			},
+		)
+	})
+
+	inputs := rx.CombineLatest2(resolved, disabled)
+
+	return rx.Defer(func() rx.Observable[layout.Widget] {
+		var b widget.Bool
+		b.Value = props.Selected
+
+		return rx.Map(inputs, func(next rx.Tuple2[resolvedTokens, bool]) layout.Widget {
+			tok, dis := next.First, next.Second
+
+			return func(gtx layout.Context) layout.Dimensions {
+				if dis {
+					gtx = gtx.Disabled()
+				}
+
+				if b.Update(gtx) {
+					if props.OnChange != nil {
+						props.OnChange(b.Value)
+					}
+					if props.Message != nil {
+						mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)
+					}
+				}
+
+				foc := !dis && gtx.Focused(&b)
+
+				return b.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					semantic.RadioButton.Add(gtx.Ops)
+					if props.Description != "" {
+						semantic.DescriptionOp(props.Description).Add(gtx.Ops)
+					}
+					return drawRadio(gtx, tok, RadioRenderState{
+						Selected: b.Value,
+						Focused:  foc,
+						Disabled: dis,
+					})
+				})
+			}
+		})
+	})
+}
+
+// RenderRadio produces a layout.Widget for a radio button in an explicit visual
+// state, without any event processing or rx machinery. Intended for golden-image
+// testing and static demonstrations; production code should use Radio.
+func RenderRadio(
+	colors tokens.ColorTokens,
+	sp tokens.SpacingScale,
+	rad tokens.RadiusScale,
+	s RadioRenderState,
+) layout.Widget {
+	tok := resolvedTokens{color: colors, spacing: sp, radius: rad}
+	return func(gtx layout.Context) layout.Dimensions {
+		return drawRadio(gtx, tok, s)
+	}
+}
+
+// drawRadio renders the radio button into gtx. All visual state comes from s;
+// no event queries are performed here.
+func drawRadio(gtx layout.Context, tok resolvedTokens, s RadioRenderState) layout.Dimensions {
+	circleSz := gtx.Dp(radioCircleSize)
+	hitSz := gtx.Dp(minHeight)
+	if hitSz < circleSz {
+		hitSz = circleSz
+	}
+
+	cx := hitSz / 2
+	cy := hitSz / 2
+
+	outerRect := image.Rectangle{
+		Min: image.Pt(cx-circleSz/2, cy-circleSz/2),
+		Max: image.Pt(cx+circleSz/2, cy+circleSz/2),
+	}
+
+	borderPx := gtx.Dp(2)
+
+	// Focus ring: 2dp stroke centred on the circle boundary; the outer half
+	// (1dp) is visible outside the circle fill and stays within the 44dp hit
+	// target. Draw first so the circle overdrawing covers only the inner half.
+	if s.Focused {
+		paint.FillShape(gtx.Ops, tok.color.Primary, clip.Stroke{
+			Path:  clip.Ellipse(outerRect).Path(gtx.Ops),
+			Width: float32(gtx.Dp(2)),
+		}.Op())
+	}
+
+	if s.Selected {
+		fill := tok.color.Primary
+		if s.Disabled {
+			fill = withAlpha(fill, 0x61)
+		}
+		// Outer ring in primary, surface gap, inner dot in primary.
+		// Nested-fill technique avoids clip.Stroke anti-aliasing variance.
+		paint.FillShape(gtx.Ops, fill, clip.Ellipse(outerRect).Op(gtx.Ops))
+		innerRect := image.Rectangle{
+			Min: image.Pt(outerRect.Min.X+borderPx, outerRect.Min.Y+borderPx),
+			Max: image.Pt(outerRect.Max.X-borderPx, outerRect.Max.Y-borderPx),
+		}
+		paint.FillShape(gtx.Ops, tok.color.Surface, clip.Ellipse(innerRect).Op(gtx.Ops))
+		dotSz := gtx.Dp(radioDotSize)
+		dotRect := image.Rectangle{
+			Min: image.Pt(cx-dotSz/2, cy-dotSz/2),
+			Max: image.Pt(cx+dotSz/2, cy+dotSz/2),
+		}
+		paint.FillShape(gtx.Ops, fill, clip.Ellipse(dotRect).Op(gtx.Ops))
+	} else {
+		// Border as nested fills: outer ellipse in border colour, inner
+		// ellipse in surface colour. Avoids clip.Stroke anti-aliasing
+		// variance in tests.
+		border := tok.color.Outline
+		if s.Disabled {
+			border = withAlpha(border, 0x61)
+		}
+		paint.FillShape(gtx.Ops, border, clip.Ellipse(outerRect).Op(gtx.Ops))
+		innerRect := image.Rectangle{
+			Min: image.Pt(outerRect.Min.X+borderPx, outerRect.Min.Y+borderPx),
+			Max: image.Pt(outerRect.Max.X-borderPx, outerRect.Max.Y-borderPx),
+		}
+		paint.FillShape(gtx.Ops, tok.color.Surface, clip.Ellipse(innerRect).Op(gtx.Ops))
+	}
+
+	return layout.Dimensions{Size: image.Pt(hitSz, hitSz)}
+}

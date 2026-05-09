@@ -1,0 +1,110 @@
+package input_test
+
+import (
+	"image"
+	"testing"
+
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/unit"
+
+	"github.com/vibrantgio/prism/input"
+	golden "github.com/vibrantgio/prism/internal/golden"
+	"github.com/vibrantgio/prism/tokens"
+)
+
+// ---- Golden-image tests ----
+
+// TestRadioGolden records or diffs the four canonical radio button states.
+func TestRadioGolden(t *testing.T) {
+	size := image.Pt(44, 44)
+
+	cases := []struct {
+		name   string
+		colors tokens.ColorTokens
+		state  input.RadioRenderState
+	}{
+		{"radio-light-unselected", tokens.DefaultLight, input.RadioRenderState{}},
+		{"radio-dark-unselected", tokens.DefaultDark, input.RadioRenderState{}},
+		{"radio-light-selected", tokens.DefaultLight, input.RadioRenderState{Selected: true}},
+		{"radio-light-focused", tokens.DefaultLight, input.RadioRenderState{Focused: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := input.RenderRadio(tc.colors, tokens.Spacing, tokens.Radius, tc.state)
+			golden.Render(t, tc.name, size, w)
+		})
+	}
+}
+
+// ---- Accessibility tests ----
+
+// TestRadioMinHitTarget checks the radio button meets the 44 dp minimum
+// interactive height (DESIGN §Accessibility / WCAG 2.5.5).
+func TestRadioMinHitTarget(t *testing.T) {
+	var ops op.Ops
+	gtx := layout.Context{
+		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
+		Constraints: layout.Exact(image.Pt(120, 120)),
+		Ops:         &ops,
+	}
+
+	dims := input.RenderRadio(
+		tokens.DefaultLight,
+		tokens.Spacing,
+		tokens.Radius,
+		input.RadioRenderState{},
+	)(gtx)
+
+	const wantPx = 44
+	if dims.Size.Y < wantPx {
+		t.Errorf("radio height = %d px, want ≥ %d px (44 dp at 1:1 scale)", dims.Size.Y, wantPx)
+	}
+	if dims.Size.X < wantPx {
+		t.Errorf("radio width = %d px, want ≥ %d px (44 dp at 1:1 scale)", dims.Size.X, wantPx)
+	}
+}
+
+// TestRadioSelectedIsVisuallyDistinct confirms the selected state renders
+// differently from the unselected state.
+func TestRadioSelectedIsVisuallyDistinct(t *testing.T) {
+	size := image.Pt(44, 44)
+
+	imgUnselected := golden.Capture(t, size, input.RenderRadio(
+		tokens.DefaultLight, tokens.Spacing, tokens.Radius,
+		input.RadioRenderState{},
+	))
+	imgSelected := golden.Capture(t, size, input.RenderRadio(
+		tokens.DefaultLight, tokens.Spacing, tokens.Radius,
+		input.RadioRenderState{Selected: true},
+	))
+
+	if imgUnselected == nil || imgSelected == nil {
+		return
+	}
+	if n := golden.PixelDiff(imgUnselected, imgSelected); n == 0 {
+		t.Error("selected and unselected radio buttons render identically; expected visual difference")
+	}
+}
+
+// TestRadioFocusRingIsVisuallyDistinct confirms the focused state renders
+// differently from the normal state (focus ring must add pixels).
+func TestRadioFocusRingIsVisuallyDistinct(t *testing.T) {
+	size := image.Pt(44, 44)
+
+	imgNormal := golden.Capture(t, size, input.RenderRadio(
+		tokens.DefaultLight, tokens.Spacing, tokens.Radius,
+		input.RadioRenderState{},
+	))
+	imgFocused := golden.Capture(t, size, input.RenderRadio(
+		tokens.DefaultLight, tokens.Spacing, tokens.Radius,
+		input.RadioRenderState{Focused: true},
+	))
+
+	if imgNormal == nil || imgFocused == nil {
+		return
+	}
+	if n := golden.PixelDiff(imgNormal, imgFocused); n == 0 {
+		t.Error("focused and normal radio buttons render identically; expected focus ring pixels to differ")
+	}
+}

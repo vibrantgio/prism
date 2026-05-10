@@ -20,3 +20,16 @@ var Elevation = ElevationScale{
 	Level4: 8,
 	Level5: 12,
 }
+
+// ElevationLevel selects an entry on the [ElevationScale] by name.
+// The dp value for a given level is read from the [Elevation] instance.
+type ElevationLevel int
+
+const (
+	Level0 ElevationLevel = iota
+	Level1
+	Level2
+	Level3
+	Level4
+	Level5
+)

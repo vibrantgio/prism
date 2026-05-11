@@ -36,6 +36,7 @@ import (
 	"github.com/vibrantgio/prism/tokens"
 
 	"github.com/vibrantgio/prism/icon"
+	"github.com/vibrantgio/pulse/springbutton"
 	ivgraster "github.com/vibrantgio/ivg/raster/gio"
 )
 
@@ -71,15 +72,19 @@ type gallery struct {
 	nav    [8]widget.Clickable
 
 	// Interactive widgets obtained via rx.First()
-	btnLive layout.Widget
-	tfLive  layout.Widget
-	cbLive  layout.Widget
-	rbALive layout.Widget
-	rbBLive layout.Widget
-	ddLive  layout.Widget
+	btnLive       layout.Widget
+	btnCompare    layout.Widget
+	springBtnLive layout.Widget
+	tfLive        layout.Widget
+	cbLive        layout.Widget
+	rbALive       layout.Widget
+	rbBLive       layout.Widget
+	ddLive        layout.Widget
 
 	// Button page
-	btnClicks int
+	btnClicks       int
+	btnCompareClicks int
+	springBtnClicks int
 
 	// Scroll state — one per page, allocated once so scroll position survives frames.
 	scrollSt [8]*list.State
@@ -158,6 +163,22 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 	}).First()
 	if err != nil {
 		log.Printf("button: %v", err)
+	}
+
+	g.btnCompare, err = button.Button(th, button.Props{
+		Label:   "Click me",
+		OnClick: func() { g.btnCompareClicks++; w.Invalidate() },
+	}).First()
+	if err != nil {
+		log.Printf("button-compare: %v", err)
+	}
+
+	g.springBtnLive, err = springbutton.SpringButton(th, button.Props{
+		Label:   "Click me",
+		OnClick: func() { g.springBtnClicks++; w.Invalidate() },
+	}, springbutton.Options{}).First()
+	if err != nil {
+		log.Printf("springbutton: %v", err)
 	}
 
 	g.tfLive, err = input.TextField(th, input.TextFieldProps{
@@ -355,6 +376,64 @@ func (g *gallery) pageButton(gtx layout.Context) layout.Dimensions {
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return g.label(gtx, fmt.Sprintf("Clicks: %d", g.btnClicks),
 								tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
+						}),
+					)
+				})
+			}),
+			g.sectionHeader("Button — static prism.Button vs pulse.SpringButton (press to see physics)"),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return prismlayout.Inset(24).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									gtx.Constraints.Min.X = gtx.Dp(unit.Dp(80))
+									gtx.Constraints.Max.X = gtx.Dp(unit.Dp(80))
+									return g.label(gtx, "Static", tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									gtx.Constraints.Max.X = gtx.Dp(unit.Dp(200))
+									gtx.Constraints.Min.X = gtx.Dp(unit.Dp(200))
+									if g.btnCompare != nil {
+										return g.btnCompare(gtx)
+									}
+									return layout.Dimensions{}
+								}),
+								layout.Rigid(prismlayout.HSpacer(16)),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return g.label(gtx, fmt.Sprintf("Clicks: %d", g.btnCompareClicks),
+										tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
+								}),
+							)
+						}),
+						layout.Rigid(prismlayout.VSpacer(16)),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									gtx.Constraints.Min.X = gtx.Dp(unit.Dp(80))
+									gtx.Constraints.Max.X = gtx.Dp(unit.Dp(80))
+									return g.label(gtx, "Spring", tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									gtx.Constraints.Max.X = gtx.Dp(unit.Dp(200))
+									gtx.Constraints.Min.X = gtx.Dp(unit.Dp(200))
+									if g.springBtnLive != nil {
+										return g.springBtnLive(gtx)
+									}
+									return layout.Dimensions{}
+								}),
+								layout.Rigid(prismlayout.HSpacer(16)),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return g.label(gtx, fmt.Sprintf("Clicks: %d", g.springBtnClicks),
+										tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
+								}),
+							)
+						}),
+						layout.Rigid(prismlayout.VSpacer(12)),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return g.label(gtx,
+								"pulse.SpringButton(theme, button.Props{...}, springbutton.Options{}) — DESIGN §Phase 3 — Composition mechanism.",
+								tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
 						}),
 					)
 				})

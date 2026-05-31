@@ -6,6 +6,7 @@ github.com/go-text/typesetting-utils v0.0.0-20241103174707-87a29e9e6066 h1:qCuYC
 github.com/reactivego/rx v0.2.2 h1:NWGc50OG1/5X3BxdPG5N82Mr9QRQcgFIamUKgKYf5oY=
 github.com/reactivego/scheduler v0.1.2 h1:SFnTs9OE9b/QQXbetqu9TGTbk1mhGjble5+kVvpSILc=
 github.com/vibrantgio/ivg v0.1.3 h1:zmPGUZYBBLcuCOeKjRs30GR1pvvRBl7zjuYDC62tOHc=
+github.com/vibrantgio/traer v0.0.4 h1:AjKEq5+tUjWctnSUGtoPAHRm5dPVKfL3Z0W5rIKDPPA=
 golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 h1:R84qjqJb5nVJMxqWYb3np9L5ZsaDtB+a39EqjV0JSUM=
 golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0 h1:tMSqXTK+AQdW3LpCbfatHSRPHeW6+2WuxaVQuHftn80=
 golang.org/x/image v0.26.0 h1:4XjIFEZWQmCZi6Wv8BoxsDhRU3RVnLX04dToTDAEPlY=

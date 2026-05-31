@@ -3,9 +3,11 @@ package layout
 import (
 	"image"
 	"image/color"
+	"reflect"
 	"testing"
 
 	gio "gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 
@@ -34,6 +36,18 @@ var (
 	blue = color.NRGBA{B: 0xff, A: 0xff}
 	wht  = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
 )
+
+// TestPillClampBoundary verifies that Pill clamps rad=9999 to min(w,h)/2=10 on
+// a 40×20 rect, producing an identical op stream to Pill called with rad=10.
+func TestPillClampBoundary(t *testing.T) {
+	rect := image.Rect(0, 0, 40, 20) // min(40,20)/2 = 10
+	var ops1, ops2 op.Ops
+	Pill(&ops1, rect, 9999) // sentinel — must clamp to 10
+	Pill(&ops2, rect, 10)   // already at the clamp limit
+	if !reflect.DeepEqual(ops1, ops2) {
+		t.Fatal("Pill(rect, 9999) must produce the same op stream as Pill(rect, 10) on a 40×20 rect")
+	}
+}
 
 // TestInset renders a red fill inside Inset(16) within a white 100×100 box.
 // Expected: red occupies the inner 68×68 region; outer 16dp is white.

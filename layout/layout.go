@@ -3,7 +3,11 @@
 package layout
 
 import (
+	"image"
+
 	gio "gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 )
 
@@ -34,4 +38,16 @@ func VSpacer(dp float32) gio.Widget {
 	return func(gtx gio.Context) gio.Dimensions {
 		return s.Layout(gtx)
 	}
+}
+
+// Pill returns a rounded-rect clip op whose corner radius is clamped to
+// min(w,h)/2. clip.RRect does not clamp corner radii to the rect, so a
+// token.Radius.Full sentinel (9999 dp) passed directly to clip.RRect sprays
+// paint across the entire canvas. Pill centralises the clamp so callers
+// cannot reintroduce that bug.
+func Pill(ops *op.Ops, rect image.Rectangle, rad int) clip.Op {
+	if maxRad := min(rect.Dx(), rect.Dy()) / 2; rad > maxRad {
+		rad = maxRad
+	}
+	return clip.RRect{Rect: rect, SE: rad, SW: rad, NE: rad, NW: rad}.Op(ops)
 }

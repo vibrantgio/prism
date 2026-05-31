@@ -194,8 +194,8 @@ func TestTextFieldSubmitFiresCallbacksAndClears(t *testing.T) {
 	props := input.TextFieldProps{
 		Submit:        true,
 		SubmitMessage: func(s string) any { gotMessage = s; return s },
-		OnSubmit:      func(s string) { gotSubmit = s },
-		OnChange:      func(s string) { gotChanges = append(gotChanges, s) },
+		OnSubmit:      func(_ layout.Context, s string) { gotSubmit = s },
+		OnChange:      func(_ layout.Context, s string) { gotChanges = append(gotChanges, s) },
 	}
 	w := liveTextField(t, props)
 
@@ -253,7 +253,7 @@ func TestTextFieldChangeEventStillFiresWithoutSubmit(t *testing.T) {
 	var got []string
 	props := input.TextFieldProps{
 		Message:  "ping",
-		OnChange: func(s string) { got = append(got, s) },
+		OnChange: func(_ layout.Context, s string) { got = append(got, s) },
 	}
 	w := liveTextField(t, props)
 

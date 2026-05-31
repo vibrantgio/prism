@@ -54,8 +54,10 @@ type Props struct {
 	Disabled rx.Observable[bool]
 
 	// OnClick is called when the button is activated by click or Space/Enter.
-	// This is the FRP callback path.
-	OnClick func()
+	// This is the FRP callback path. The gtx argument is the layout.Context
+	// active on the frame when the click is processed, allowing consumers to
+	// emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the callback.
+	OnClick func(gtx layout.Context)
 
 	// Message, if non-nil, causes the button to emit mvu.MessageOp{Message}
 	// into gtx.Ops on activation. This is the MVU integration path.
@@ -120,7 +122,7 @@ func Button(th rx.Observable[theme.Theme], props Props) rx.Observable[layout.Wid
 				// Process events; Clicked also handles Space/Enter via widget.Clickable.
 				if click.Clicked(gtx) {
 					if props.OnClick != nil {
-						props.OnClick()
+						props.OnClick(gtx)
 					}
 					if props.Message != nil {
 						mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)

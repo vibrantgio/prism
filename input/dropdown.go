@@ -49,8 +49,10 @@ type DropdownProps struct {
 	Disabled rx.Observable[bool]
 
 	// OnSelect is called with the newly selected index on every selection.
-	// This is the FRP callback path.
-	OnSelect func(int)
+	// This is the FRP callback path. The gtx argument is the layout.Context
+	// active on the frame when the selection is processed, allowing consumers to
+	// emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the callback.
+	OnSelect func(gtx layout.Context, index int)
 
 	// Message, if non-nil, causes the dropdown to emit mvu.MessageOp{Message}
 	// on every selection. This is the MVU integration path.
@@ -110,7 +112,7 @@ func Dropdown(th rx.Observable[theme.Theme], props DropdownProps) rx.Observable[
 						selected = i
 						open = false
 						if props.OnSelect != nil {
-							props.OnSelect(i)
+							props.OnSelect(gtx, i)
 						}
 						if props.Message != nil {
 							mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)

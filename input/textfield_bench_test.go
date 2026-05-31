@@ -77,7 +77,7 @@ func BenchmarkTextFieldRenderSubmit(b *testing.B) {
 		Placeholder:   "Placeholder",
 		Submit:        true,
 		SubmitMessage: func(s string) any { return s },
-		OnSubmit:      func(string) {},
+		OnSubmit:      func(_ layout.Context, _ string) {},
 		Shaper:        shaper,
 	}
 

@@ -44,8 +44,10 @@ type RadioProps struct {
 	Disabled rx.Observable[bool]
 
 	// OnChange is called with the new selected value on every toggle.
-	// This is the FRP callback path.
-	OnChange func(bool)
+	// This is the FRP callback path. The gtx argument is the layout.Context
+	// active on the frame when the toggle is processed, allowing consumers to
+	// emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the callback.
+	OnChange func(gtx layout.Context, selected bool)
 
 	// Message, if non-nil, causes the radio to emit mvu.MessageOp{Message}
 	// on every toggle. This is the MVU integration path.
@@ -90,7 +92,7 @@ func Radio(th rx.Observable[theme.Theme], props RadioProps) rx.Observable[layout
 
 				if b.Update(gtx) {
 					if props.OnChange != nil {
-						props.OnChange(b.Value)
+						props.OnChange(gtx, b.Value)
 					}
 					if props.Message != nil {
 						mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)

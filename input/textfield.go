@@ -52,8 +52,10 @@ type TextFieldProps struct {
 	Disabled rx.Observable[bool]
 
 	// OnChange is called with the new value on every text change.
-	// This is the FRP callback path.
-	OnChange func(string)
+	// This is the FRP callback path. The gtx argument is the layout.Context
+	// active on the frame when the change is processed, allowing consumers to
+	// emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the callback.
+	OnChange func(gtx layout.Context, text string)
 
 	// Message, if non-nil, causes the field to emit mvu.MessageOp{Message}
 	// on every text change. This is the MVU integration path.
@@ -70,7 +72,10 @@ type TextFieldProps struct {
 
 	// OnSubmit, if non-nil, is invoked on each submit with the editor's
 	// current text. After both callbacks run the editor is cleared.
-	OnSubmit func(text string)
+	// The gtx argument is the layout.Context active on the frame when the
+	// submit is processed, allowing consumers to emit
+	// mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the callback.
+	OnSubmit func(gtx layout.Context, text string)
 
 	// Shaper, if nil, defaults to a shaper backed by Go fonts.
 	Shaper *text.Shaper
@@ -135,7 +140,7 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 					case widget.ChangeEvent:
 						val := editor.Text()
 						if props.OnChange != nil {
-							props.OnChange(val)
+							props.OnChange(gtx, val)
 						}
 						if props.Message != nil {
 							mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)
@@ -145,7 +150,7 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 							mvu.MessageOp{Message: props.SubmitMessage(ev.Text)}.Add(gtx.Ops)
 						}
 						if props.OnSubmit != nil {
-							props.OnSubmit(ev.Text)
+							props.OnSubmit(gtx, ev.Text)
 						}
 						editor.SetText("")
 					}

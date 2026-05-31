@@ -159,7 +159,7 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 	var err error
 	g.btnLive, err = button.Button(th, button.Props{
 		Label:   "Click me",
-		OnClick: func() { g.btnClicks++; w.Invalidate() },
+		OnClick: func(_ layout.Context) { g.btnClicks++; w.Invalidate() },
 	}).First()
 	if err != nil {
 		log.Printf("button: %v", err)
@@ -167,7 +167,7 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 
 	g.btnCompare, err = button.Button(th, button.Props{
 		Label:   "Click me",
-		OnClick: func() { g.btnCompareClicks++; w.Invalidate() },
+		OnClick: func(_ layout.Context) { g.btnCompareClicks++; w.Invalidate() },
 	}).First()
 	if err != nil {
 		log.Printf("button-compare: %v", err)
@@ -175,7 +175,7 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 
 	g.springBtnLive, err = springbutton.SpringButton(th, button.Props{
 		Label:   "Click me",
-		OnClick: func() { g.springBtnClicks++; w.Invalidate() },
+		OnClick: func(_ layout.Context) { g.springBtnClicks++; w.Invalidate() },
 	}, springbutton.Options{}).First()
 	if err != nil {
 		log.Printf("springbutton: %v", err)

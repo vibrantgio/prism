@@ -41,8 +41,10 @@ type CheckboxProps struct {
 	Disabled rx.Observable[bool]
 
 	// OnChange is called with the new checked value on every toggle.
-	// This is the FRP callback path.
-	OnChange func(bool)
+	// This is the FRP callback path. The gtx argument is the layout.Context
+	// active on the frame when the toggle is processed, allowing consumers to
+	// emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the callback.
+	OnChange func(gtx layout.Context, checked bool)
 
 	// Message, if non-nil, causes the checkbox to emit mvu.MessageOp{Message}
 	// on every toggle. This is the MVU integration path.
@@ -91,7 +93,7 @@ func Checkbox(th rx.Observable[theme.Theme], props CheckboxProps) rx.Observable[
 				// b.Layout re-drains the event queue (safe — second call finds nothing).
 				if b.Update(gtx) {
 					if props.OnChange != nil {
-						props.OnChange(b.Value)
+						props.OnChange(gtx, b.Value)
 					}
 					if props.Message != nil {
 						mvu.MessageOp{Message: props.Message}.Add(gtx.Ops)

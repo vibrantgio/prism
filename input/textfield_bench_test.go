@@ -4,22 +4,26 @@ import (
 	"image"
 	"testing"
 
+	"gioui.org/f32"
 	"gioui.org/font/gofont"
 	gioinput "gioui.org/io/input"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
-	"gioui.org/unit"
 
 	"github.com/reactivego/rx"
+	"github.com/vibrantgio/prism/bench"
 	"github.com/vibrantgio/prism/input"
 	"github.com/vibrantgio/prism/theme"
 	"github.com/vibrantgio/prism/tokens"
 )
 
-// BenchmarkTextFieldRender exercises widget(gtx) for b.N synthetic frames,
-// per DESIGN §"Performance — Profiling". b.ReportAllocs is enabled so CI
-// can gate on per-frame allocation regressions (>5% threshold).
+// BenchmarkTextFieldRender measures the static, unfocused render path
+// (input.Render → drawTextFieldStatic) via the shared bench.BenchFrame harness.
+// It is the idle baseline that the live caret-blink frame below is contrasted
+// against; b.ReportAllocs is enabled by the harness.
 func BenchmarkTextFieldRender(b *testing.B) {
 	shaper := text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))
 	w := input.Render(
@@ -27,58 +31,28 @@ func BenchmarkTextFieldRender(b *testing.B) {
 		tokens.DefaultLight, tokens.Spacing, tokens.Radius, tokens.DefaultTypeScale,
 		input.RenderState{},
 	)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		var ops op.Ops
-		gtx := layout.Context{
-			Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
-			Constraints: layout.Exact(image.Pt(300, 60)),
-			Ops:         &ops,
-		}
-		w(gtx)
-	}
+	bench.BenchFrame(b, w)
 }
 
-// BenchmarkTextFieldRenderFocused benchmarks the focused state which draws a
-// wider border stroke.
-func BenchmarkTextFieldRenderFocused(b *testing.B) {
+// BenchmarkTextFieldCaretBlink measures the cursor-blinking frame: a live
+// widget.Editor that is focused and holds text, so drawTextFieldLive renders
+// the caret on every frame (the caret is drawn only while gtx.Focused(editor)
+// is true — textfield.go). This is the typing hot path, so it is NOT
+// apples-to-apples with the static render above: it includes editor layout plus
+// the input.Router frame cost.
+//
+// Focus is established before the timed loop with the proven click-to-focus
+// dance from TestTextFieldSubmitFiresCallbacksAndClears, then a key.EditEvent
+// types text. The OnChange guard fails the benchmark loudly if focus or input
+// silently did not take — otherwise we would benchmark the unfocused
+// placeholder frame under a "caret-blink" label.
+func BenchmarkTextFieldCaretBlink(b *testing.B) {
 	shaper := text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))
-	w := input.Render(
-		shaper, "Placeholder",
-		tokens.DefaultLight, tokens.Spacing, tokens.Radius, tokens.DefaultTypeScale,
-		input.RenderState{Focused: true},
-	)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		var ops op.Ops
-		gtx := layout.Context{
-			Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
-			Constraints: layout.Exact(image.Pt(300, 60)),
-			Ops:         &ops,
-		}
-		w(gtx)
-	}
-}
-
-// BenchmarkTextFieldRenderSubmit exercises the live submit-enabled TextField
-// path so per-frame allocations on chat-style inputs are measurable. The
-// editor and event loop are taken through a real input.Router; submit
-// configures the editor to translate Enter into widget.SubmitEvent, which
-// changes the event-handling branch but not the visible rendering.
-func BenchmarkTextFieldRenderSubmit(b *testing.B) {
-	shaper := text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))
+	var changed string
 	props := input.TextFieldProps{
-		Placeholder:   "Placeholder",
-		Submit:        true,
-		SubmitMessage: func(s string) any { return s },
-		OnSubmit:      func(_ layout.Context, _ string) {},
-		Shaper:        shaper,
+		Placeholder: "Placeholder",
+		Shaper:      shaper,
+		OnChange:    func(_ layout.Context, s string) { changed = s },
 	}
 
 	var w layout.Widget
@@ -94,20 +68,27 @@ func BenchmarkTextFieldRenderSubmit(b *testing.B) {
 	}
 
 	r := new(gioinput.Router)
-	var ops op.Ops
+	ops := new(op.Ops)
+	size := image.Pt(300, 60)
 
-	b.ReportAllocs()
-	b.ResetTimer()
+	// Frame 1 registers the editor's pointer/keyboard regions; we need its
+	// dimensions to click at the centre.
+	dims := driveTextFieldFrame(w, ops, r, size)
+	centre := f32.Pt(float32(dims.Size.X)/2, float32(dims.Size.Y)/2)
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+		pointer.Event{Kind: pointer.Release, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+	)
+	// Frame 2 lets the editor process the press and request focus.
+	driveTextFieldFrame(w, ops, r, size)
 
-	for i := 0; i < b.N; i++ {
-		ops.Reset()
-		gtx := layout.Context{
-			Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
-			Constraints: layout.Exact(image.Pt(300, 60)),
-			Ops:         &ops,
-			Source:      r.Source(),
-		}
-		w(gtx)
-		r.Frame(&ops)
+	// Type into the now-focused editor so the caret sits inside real content.
+	r.Queue(key.EditEvent{Range: key.Range{Start: 0, End: 0}, Text: "caret"})
+	driveTextFieldFrame(w, ops, r, size)
+
+	if changed != "caret" {
+		b.Fatalf("editor did not focus/ingest input (OnChange=%q): caret path is dead, benchmark would measure the wrong frame", changed)
 	}
+
+	bench.BenchFrame(b, w, bench.WithRouter(r), bench.WithSize(size))
 }

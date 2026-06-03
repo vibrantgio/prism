@@ -4,6 +4,7 @@ go 1.25.1
 
 require (
 	gioui.org v0.9.0
+	github.com/vibrantgio/prism/bench v0.0.0
 	github.com/vibrantgio/prism/internal/golden v0.0.0
 )
 
@@ -13,3 +14,5 @@ require (
 )
 
 replace github.com/vibrantgio/prism/internal/golden => ../internal/golden
+
+replace github.com/vibrantgio/prism/bench => ../bench

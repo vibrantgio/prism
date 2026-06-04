@@ -35,11 +35,13 @@ func BenchmarkTextFieldRender(b *testing.B) {
 }
 
 // BenchmarkTextFieldCaretBlink measures the cursor-blinking frame: a live
-// widget.Editor that is focused and holds text, so drawTextFieldLive renders
-// the caret on every frame (the caret is drawn only while gtx.Focused(editor)
-// is true — textfield.go). This is the typing hot path, so it is NOT
-// apples-to-apples with the static render above: it includes editor layout plus
-// the input.Router frame cost.
+// widget.Editor that is focused and holds text, so drawTextFieldLive runs the
+// focused-editor path — editor layout plus caret-geometry work — every frame
+// (that path runs only while gtx.Focused(editor) is true — textfield.go). This
+// is the typing hot path, so it is NOT apples-to-apples with the static render
+// above: it also includes the input.Router frame cost. gtx.Now is the zero time
+// on every iteration, so this is one frozen focused frame repeated; the exact
+// caret blink phase within it is not asserted, only that the focused path runs.
 //
 // Focus is established before the timed loop with the proven click-to-focus
 // dance from TestTextFieldSubmitFiresCallbacksAndClears, then a key.EditEvent

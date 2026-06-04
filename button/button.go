@@ -49,6 +49,15 @@ type Props struct {
 	// Description is the screen-reader label. Falls back to Label when empty.
 	Description string
 
+	// Icon, when non-nil and Label is empty, renders the button as a compact
+	// icon-only affordance: a square the size of the 44 dp hit target with the
+	// glyph centred, instead of a fill-width text label. The painter draws into
+	// a sizePx×sizePx box at the current origin in colour col, via
+	// clip.Path / clip.Stroke, so output stays golden-deterministic (no font or
+	// SVG rasterisation). prism/icon is the registry for named glyphs;
+	// determinism-sensitive callers pass a clip.Path painter directly.
+	Icon func(gtx layout.Context, sizePx int, col color.NRGBA)
+
 	// Disabled, if non-nil, disables the button when it emits true.
 	// A nil Disabled means always enabled.
 	Disabled rx.Observable[bool]
@@ -62,6 +71,14 @@ type Props struct {
 	// Message, if non-nil, causes the button to emit mvu.MessageOp{Message}
 	// into gtx.Ops on activation. This is the MVU integration path.
 	Message any
+
+	// Clickable, if non-nil, is used instead of an internally-allocated one.
+	// The caller then owns &Clickable as the button's focus tag — usable with
+	// key.FocusCmd, key.Filter{Focus: …} and an external Tab cycle — and may
+	// detect activation via Clickable.Clicked(gtx). This lets a container (e.g.
+	// cadence/modal) drive focus and trap Tab without a doubled focus ring.
+	// When nil the button allocates and owns its own clickable.
+	Clickable *widget.Clickable
 
 	// Shaper, if nil, defaults to a shaper backed by Go fonts.
 	// The default shaper is created once per subscription inside the rx.Defer
@@ -104,8 +121,9 @@ func Button(th rx.Observable[theme.Theme], props Props) rx.Observable[layout.Wid
 
 	return rx.Defer(func() rx.Observable[layout.Widget] {
 		// Allocated once per subscription — survives all theme and disabled
-		// emissions for the lifetime of this button instance.
-		var click widget.Clickable
+		// emissions for the lifetime of this button instance. Used only when
+		// the caller does not supply Props.Clickable.
+		var ownClick widget.Clickable
 		shaper := props.Shaper
 		if shaper == nil {
 			shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))
@@ -117,6 +135,13 @@ func Button(th rx.Observable[theme.Theme], props Props) rx.Observable[layout.Wid
 			return func(gtx layout.Context) layout.Dimensions {
 				if dis {
 					gtx = gtx.Disabled()
+				}
+
+				// The caller may own the clickable (and thus the focus tag);
+				// otherwise use the per-subscription one.
+				click := props.Clickable
+				if click == nil {
+					click = &ownClick
 				}
 
 				// Process events; Clicked also handles Space/Enter via widget.Clickable.
@@ -131,24 +156,30 @@ func Button(th rx.Observable[theme.Theme], props Props) rx.Observable[layout.Wid
 
 				hov := click.Hovered()
 				prs := click.Pressed()
-				foc := !dis && gtx.Focused(&click)
+				foc := !dis && gtx.Focused(click)
 
 				desc := props.Description
 				if desc == "" {
 					desc = props.Label
 				}
 
+				iconOnly := props.Icon != nil && props.Label == ""
+
 				return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					semantic.ClassOp(semantic.Button).Add(gtx.Ops)
 					semantic.LabelOp(props.Label).Add(gtx.Ops)
 					semantic.DescriptionOp(desc).Add(gtx.Ops)
 					semantic.EnabledOp(!dis).Add(gtx.Ops)
-					return drawButton(gtx, shaper, props.Label, tok, RenderState{
+					state := RenderState{
 						Hovered:  hov,
 						Focused:  foc,
 						Pressed:  prs,
 						Disabled: dis,
-					})
+					}
+					if iconOnly {
+						return drawIconButton(gtx, props.Icon, tok, state)
+					}
+					return drawButton(gtx, shaper, props.Label, tok, state)
 				})
 			}
 		})
@@ -170,6 +201,25 @@ func Render(
 	tok := resolvedTokens{color: colors, spacing: sp, radius: rad, typ: ts}
 	return func(gtx layout.Context) layout.Dimensions {
 		return drawButton(gtx, shaper, label, tok, s)
+	}
+}
+
+// RenderIcon produces a layout.Widget for a compact icon-only button in an
+// explicit visual state, without event processing or rx machinery. The glyph is
+// drawn by icon into a square the size of the 44 dp hit target. Intended for
+// golden-image testing and static demonstrations; production code should use
+// Button with Props.Icon (and, when a container drives focus, Props.Clickable).
+func RenderIcon(
+	icon func(gtx layout.Context, sizePx int, col color.NRGBA),
+	colors tokens.ColorTokens,
+	sp tokens.SpacingScale,
+	rad tokens.RadiusScale,
+	ts tokens.TypeScale,
+	s RenderState,
+) layout.Widget {
+	tok := resolvedTokens{color: colors, spacing: sp, radius: rad, typ: ts}
+	return func(gtx layout.Context) layout.Dimensions {
+		return drawIconButton(gtx, icon, tok, s)
 	}
 }
 
@@ -235,6 +285,48 @@ func drawButton(gtx layout.Context, shaper *text.Shaper, label string, tok resol
 	}
 
 	return layout.Dimensions{Size: btnSize}
+}
+
+// drawIconButton renders a compact, square icon-only button: a 44 dp hit-target
+// square filled with the button background, the focus ring when focused, and the
+// glyph (drawn by icon) centred inside the padding. Shares buttonColors with the
+// text button so hover/press/focus/disabled treatments match. All visual state
+// comes from s; no event queries are performed here.
+func drawIconButton(gtx layout.Context, icon func(gtx layout.Context, sizePx int, col color.NRGBA), tok resolvedTokens, s RenderState) layout.Dimensions {
+	pad := gtx.Dp(unit.Dp(tok.spacing.S2)) // 8 dp inset around the glyph
+	side := gtx.Dp(minHeight)              // 44 dp square — WCAG 2.5.5 hit target
+	rad := gtx.Dp(unit.Dp(tok.radius.Md))  // 6 dp corner radius
+	sz := image.Pt(side, side)
+
+	bg, fg := buttonColors(tok.color, s)
+
+	// Background fill.
+	rrect := clip.RRect{Rect: image.Rectangle{Max: sz}, SE: rad, SW: rad, NE: rad, NW: rad}
+	paint.FillShape(gtx.Ops, bg, rrect.Op(gtx.Ops))
+
+	// Focus ring (2 dp stroke on the background boundary), matching drawButton.
+	if s.Focused {
+		paint.FillShape(gtx.Ops, tok.color.Outline, clip.Stroke{
+			Path:  rrect.Path(gtx.Ops),
+			Width: float32(gtx.Dp(2)),
+		}.Op())
+	}
+
+	// Glyph, centred within the padded square.
+	if icon != nil {
+		glyph := side - 2*pad
+		if glyph < 1 {
+			glyph, pad = side, 0
+		}
+		off := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)
+		icon(gtx, glyph, fg)
+		off.Pop()
+	}
+
+	if !s.Disabled {
+		pointer.CursorPointer.Add(gtx.Ops)
+	}
+	return layout.Dimensions{Size: sz}
 }
 
 // buttonColors returns the background and foreground colors for the given state.

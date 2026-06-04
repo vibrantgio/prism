@@ -15,7 +15,7 @@ require (
 	github.com/vibrantgio/prism/list v0.0.0
 	github.com/vibrantgio/prism/theme v0.0.0
 	github.com/vibrantgio/prism/tokens v0.0.0
-	github.com/vibrantgio/pulse/springbutton v0.0.0
+	github.com/vibrantgio/pulse v0.0.0
 )
 
 require (
@@ -24,7 +24,6 @@ require (
 	github.com/reactivego/scheduler v0.1.2 // indirect
 	github.com/vibrantgio/ivg v0.1.3 // indirect
 	github.com/vibrantgio/mvu v0.0.0 // indirect
-	github.com/vibrantgio/pulse/spring v0.0.0 // indirect
 	github.com/vibrantgio/traer v0.0.4 // indirect
 	golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/image v0.26.0 // indirect
@@ -45,7 +44,6 @@ replace (
 	github.com/vibrantgio/prism/list => ../list
 	github.com/vibrantgio/prism/theme => ../theme
 	github.com/vibrantgio/prism/tokens => ../tokens
-	github.com/vibrantgio/pulse/spring => ../../pulse/spring
-	github.com/vibrantgio/pulse/springbutton => ../../pulse/springbutton
+	github.com/vibrantgio/pulse => ../../pulse
 	github.com/vibrantgio/svg/driver/gio => ../../svg/driver/gio
 )

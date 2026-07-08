@@ -279,3 +279,37 @@ func TestTextFieldChangeEventStillFiresWithoutSubmit(t *testing.T) {
 		t.Errorf("OnChange got %q, want %q", got[len(got)-1], "x")
 	}
 }
+
+// TestTextFieldMaskKeepsValue confirms Mask obscures only the on-screen display:
+// the unmasked text is still delivered through OnChange (and hence the editor's
+// Text()), so a masked secret field reports the real secret to its consumer.
+func TestTextFieldMaskKeepsValue(t *testing.T) {
+	var got []string
+	props := input.TextFieldProps{
+		Mask:     '•',
+		OnChange: func(_ layout.Context, s string) { got = append(got, s) },
+	}
+	w := liveTextField(t, props)
+
+	r := new(gioinput.Router)
+	ops := new(op.Ops)
+	size := image.Pt(300, 60)
+
+	dims := driveTextFieldFrame(w, ops, r, size)
+	centre := f32.Pt(float32(dims.Size.X)/2, float32(dims.Size.Y)/2)
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+		pointer.Event{Kind: pointer.Release, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+	)
+	driveTextFieldFrame(w, ops, r, size)
+
+	r.Queue(key.EditEvent{Range: key.Range{Start: 0, End: 0}, Text: "secret"})
+	driveTextFieldFrame(w, ops, r, size)
+
+	if len(got) == 0 {
+		t.Fatal("OnChange not invoked on masked field")
+	}
+	if last := got[len(got)-1]; last != "secret" {
+		t.Errorf("masked field delivered %q, want unmasked %q", last, "secret")
+	}
+}

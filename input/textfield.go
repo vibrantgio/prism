@@ -48,6 +48,12 @@ type TextFieldProps struct {
 	// Description is the screen-reader label. Falls back to Placeholder when empty.
 	Description string
 
+	// Mask, when non-zero, hides the entered text by rendering every rune as
+	// this one (e.g. '•' for a password or secret field). The unmasked value is
+	// still delivered through OnChange/Message and the editor's Text(); only the
+	// on-screen display is obscured. The placeholder is never masked.
+	Mask rune
+
 	// Disabled, if non-nil, disables the field when it emits true.
 	Disabled rx.Observable[bool]
 
@@ -116,7 +122,7 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 	return rx.Defer(func() rx.Observable[layout.Widget] {
 		// Allocated once per subscription — survives all theme and disabled
 		// emissions for the lifetime of this TextField instance.
-		editor := &widget.Editor{SingleLine: true, Submit: props.Submit}
+		editor := &widget.Editor{SingleLine: true, Submit: props.Submit, Mask: props.Mask}
 		shaper := props.Shaper
 		if shaper == nil {
 			shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))

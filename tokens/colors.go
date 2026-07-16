@@ -56,19 +56,19 @@ var (
 // every Prism component. Each "On" field is the recommended text/icon colour
 // rendered on top of its companion field.
 type ColorTokens struct {
-	Background        color.NRGBA
-	OnBackground      color.NRGBA
-	Surface           color.NRGBA
-	OnSurface         color.NRGBA
-	SurfaceVariant    color.NRGBA
-	OnSurfaceVariant  color.NRGBA
-	Primary           color.NRGBA
-	OnPrimary         color.NRGBA
-	Secondary         color.NRGBA
-	OnSecondary       color.NRGBA
-	Error             color.NRGBA
-	OnError           color.NRGBA
-	Outline           color.NRGBA // border/divider; no "On" counterpart
+	Background       color.NRGBA
+	OnBackground     color.NRGBA
+	Surface          color.NRGBA
+	OnSurface        color.NRGBA
+	SurfaceVariant   color.NRGBA
+	OnSurfaceVariant color.NRGBA
+	Primary          color.NRGBA
+	OnPrimary        color.NRGBA
+	Secondary        color.NRGBA
+	OnSecondary      color.NRGBA
+	Error            color.NRGBA
+	OnError          color.NRGBA
+	Outline          color.NRGBA // border/divider; no "On" counterpart
 }
 
 // DefaultLight is the canonical light-mode colour token set.

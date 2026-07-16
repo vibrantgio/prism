@@ -4,10 +4,10 @@ import (
 	"image"
 	"testing"
 
-	gio "gioui.org/layout"
 	"gioui.org/io/event"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
+	gio "gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 )

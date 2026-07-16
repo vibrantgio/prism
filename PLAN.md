@@ -263,21 +263,21 @@ nothing outside it changes. After every task the full repo gates pass:
 Create `scrollbar/scrollbar.go` with the public types and the token-derived
 defaults, no drawing yet. Follow R-003 for the package doc.
 
-- [ ] Write the package doc: visible scrollbar for scrollable regions;
+- [x] Write the package doc: visible scrollbar for scrollable regions;
       immediate-mode (allocate `State` once, style per frame); pairs with
       `prism/list` via `list.LayoutScrollbar` (forward reference is fine).
-- [ ] Define `type State struct { widget.Scrollbar }` (embedding, so
+- [x] Define `type State struct { widget.Scrollbar }` (embedding, so
       `Update`/`ScrollDistance`/`Dragging` are promoted) plus
       `func NewState() *State`.
-- [ ] Define `type Style struct { ThumbColor, ThumbHoverColor, TrackColor
+- [x] Define `type Style struct { ThumbColor, ThumbHoverColor, TrackColor
       color.NRGBA; ThumbMinorWidth, TrackPadding, ThumbCornerRadius,
       ThumbMinLen unit.Dp }` and `func (s Style) Width() unit.Dp` returning
       `ThumbMinorWidth + 2×TrackPadding`.
-- [ ] Implement `func FromTokens(c tokens.ColorTokens) Style` with exactly
+- [x] Implement `func FromTokens(c tokens.ColorTokens) Style` with exactly
       the ADR-005 values; add a unit test asserting the mapping for
       `tokens.DefaultLight` and `tokens.DefaultDark` (alpha values included)
       and `Width() == 10`.
-- [ ] Gates: `gofmt -l .` empty, `go vet ./...`, `go test ./...`.
+- [x] Gates: `gofmt -l .` empty, `go vet ./...`, `go test ./...`.
 
 #### G1.1.2: Port the viewport-fraction maths
 

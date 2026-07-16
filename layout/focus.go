@@ -1,9 +1,9 @@
 package layout
 
 import (
-	gio "gioui.org/layout"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
+	gio "gioui.org/layout"
 )
 
 // FocusGroup tracks keyboard focus among a fixed set of interactive items.
@@ -23,7 +23,7 @@ import (
 //	focused := g.Focused() // -1 if none
 type FocusGroup struct {
 	items     []focusItem
-	focused   int  // valid only when haveFocus is true
+	focused   int // valid only when haveFocus is true
 	haveFocus bool
 }
 

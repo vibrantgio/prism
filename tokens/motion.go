@@ -18,10 +18,10 @@ type MotionScale struct {
 	DurXSlow  time.Duration // 700 ms
 
 	// Easing presets (CSS standard curves).
-	EaseLinear   Bezier
-	EaseIn       Bezier
-	EaseOut      Bezier
-	EaseInOut    Bezier
+	EaseLinear Bezier
+	EaseIn     Bezier
+	EaseOut    Bezier
+	EaseInOut  Bezier
 }
 
 // Motion is the default scale instance.

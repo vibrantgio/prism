@@ -35,9 +35,9 @@ import (
 	"github.com/vibrantgio/prism/theme"
 	"github.com/vibrantgio/prism/tokens"
 
+	ivgraster "github.com/vibrantgio/ivg/raster/gio"
 	"github.com/vibrantgio/prism/icon"
 	"github.com/vibrantgio/pulse/springbutton"
-	ivgraster "github.com/vibrantgio/ivg/raster/gio"
 )
 
 var pageNames = []string{
@@ -82,9 +82,9 @@ type gallery struct {
 	ddLive        layout.Widget
 
 	// Button page
-	btnClicks       int
+	btnClicks        int
 	btnCompareClicks int
-	springBtnClicks int
+	springBtnClicks  int
 
 	// Scroll state — one per page, allocated once so scroll position survives frames.
 	scrollSt [8]*list.State
@@ -243,7 +243,7 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 	}
 
 	// A11y: live OS preference polling on Goroutine scheduler.
-	g.a11ySub = a11y.Live(2 * time.Second).Subscribe(
+	g.a11ySub = a11y.Live(2*time.Second).Subscribe(
 		func(p a11y.A11yPrefs, err error, done bool) {
 			if !done {
 				g.prefsMu.Lock()

@@ -44,8 +44,8 @@ func (windowsSource) Read() (A11yPrefs, error) {
 	)
 
 	return A11yPrefs{
-		ReduceMotion:     animEnabled == 0,
-		HighContrast:     hc.dwFlags&hcfHighContrastOn != 0,
+		ReduceMotion: animEnabled == 0,
+		HighContrast: hc.dwFlags&hcfHighContrastOn != 0,
 		// No Windows API directly exposes an "increase text size" preference.
 		IncreaseTextSize: false,
 	}, nil

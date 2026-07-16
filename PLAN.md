@@ -497,7 +497,7 @@ existing `list` unit/golden tests from G2.1.1/G2.1.2).
       package and the list entry point (Co-Authored-By trailer per repo
       convention), then `git tag v0.0.5` (lightweight, matching v0.0.4) and
       `git push origin master v0.0.5`.
-- [ ] Verify resolvability: in a scratch dir outside the workspace,
+- [x] Verify resolvability: in a scratch dir outside the workspace,
       `GOWORK=off go mod download github.com/vibrantgio/prism@v0.0.5`.
 
 ## Phase P4: downstream adoption (cross-repo)

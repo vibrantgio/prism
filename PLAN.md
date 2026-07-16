@@ -286,20 +286,20 @@ Add `FromListPosition` — the bridge from `layout.Position` to the
 algorithm; material's `fromListPosition` is the reference source
 (`gioui.org@v0.9.0/widget/material/list.go`).
 
-- [ ] Implement `func FromListPosition(lp layout.Position, elements int,
+- [x] Implement `func FromListPosition(lp layout.Position, elements int,
       majorAxisSize int) (start, end float32)` in
       `scrollbar/position.go`, including the error-diffusion step and a
       `clamp1` helper; guard `elements == 0` and `lp.Length == 0` by
       returning `(0, 1)` (nothing to scroll).
-- [ ] Table tests in `scrollbar/position_test.go`: top of list → start 0;
+- [x] Table tests in `scrollbar/position_test.go`: top of list → start 0;
       bottom (`First+Count == elements`, `OffsetLast == 0`) → end 1; middle
       of a uniform list → `end-start ≈ visible/total` within 1e-3; the
       degenerate guards; and a variable-offset case asserting
       `0 ≤ start ≤ end ≤ 1` always holds.
-- [ ] Property-style sweep: for a few hundred synthetic positions (nested
+- [x] Property-style sweep: for a few hundred synthetic positions (nested
       loops over First/Offset/Count, no randomness), assert the invariant
       `0 ≤ start ≤ end ≤ 1` and that start is non-decreasing as First grows.
-- [ ] Gates green.
+- [x] Gates green.
 
 #### G1.1.3: Draw and wire the gestures — Style.Layout
 

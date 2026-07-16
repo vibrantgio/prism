@@ -405,11 +405,11 @@ behaviour must not change — the whole phase is additive (ADR-006).
 
 #### G2.1.1: The entry point and Occupy anchor
 
-- [ ] Add `sb widget.Scrollbar` to `list.State` (unexported; zero-value
+- [x] Add `sb widget.Scrollbar` to `list.State` (unexported; zero-value
       ready — document that `NewState` callers are unaffected).
-- [ ] Add `type Anchor int` with `Occupy` and `Overlay` constants and doc
+- [x] Add `type Anchor int` with `Occupy` and `Overlay` constants and doc
       comments explaining the trade (gutter vs content overlap).
-- [ ] Implement `LayoutScrollbar` per ADR-006 in `list/scrollbar.go`:
+- [x] Implement `LayoutScrollbar` per ADR-006 in `list/scrollbar.go`:
       Occupy shrinks `Constraints.Max.X`/`Min.X` by `gtx.Dp(bar.Width())`
       (floor at 0) before `state.l.Layout`, restores constraints, computes
       fractions via `scrollbar.FromListPosition(state.l.Position,
@@ -417,14 +417,14 @@ behaviour must not change — the whole phase is additive (ADR-006).
       `Constraints.Min = listDims.Size` (re-widened by the gutter for
       Occupy), draws `bar.Layout(gtx, &state.sb, layout.Vertical, …)`, and
       reports dims re-widened by the gutter.
-- [ ] Scroll feedback after drawing: `if d := state.sb.ScrollDistance();
+- [x] Scroll feedback after drawing: `if d := state.sb.ScrollDistance();
       d != 0 { state.l.ScrollBy(d * float32(len(items))) }`.
-- [ ] Unit test: 100 fixed-height rows in a short viewport; simulate a drag
+- [x] Unit test: 100 fixed-height rows in a short viewport; simulate a drag
       by calling the feedback path with a hand-set distance (extract it as
       a small testable func if needed) and assert `Position.First`
       advances; assert `Occupy` narrows row width by exactly
       `gtx.Dp(bar.Width())`.
-- [ ] Gates green, and `go test ./list/` proves old goldens unchanged.
+- [x] Gates green, and `go test ./list/` proves old goldens unchanged.
 
 #### G2.1.2: Overlay anchor and goldens
 

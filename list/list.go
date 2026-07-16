@@ -7,12 +7,24 @@
 // widget state stable across reorders.
 package list
 
-import "gioui.org/layout"
+import (
+	"gioui.org/layout"
+
+	"github.com/vibrantgio/prism/scrollbar"
+)
 
 // State holds the scroll position across frames.
 // Allocate once per list instance and reuse on every frame.
+//
+// The embedded scrollbar state (used only by LayoutScrollbar) is zero-value
+// ready, so existing NewState/NewStateAt callers are unaffected.
 type State struct {
 	l layout.List
+	// sb holds the scrollbar gesture state for LayoutScrollbar. It is a
+	// scrollbar.State (which embeds gioui.org/widget.Scrollbar) rather than
+	// widget.Scrollbar directly so &sb can be passed to scrollbar.Style.Layout
+	// while ScrollDistance remains reachable via promotion.
+	sb scrollbar.State
 }
 
 // NewState returns a State for a vertical list starting at the top.

@@ -523,12 +523,12 @@ pushed (P3).
 
 #### G4.1.1: workbench llms.txt
 
-- [ ] Update the prism module line to v0.0.5 and add `scrollbar` to its
+- [x] Update the prism module line to v0.0.5 and add `scrollbar` to its
       component list; if the llms.txt "Minimal go.mod" pins prism, bump it
       there too.
-- [ ] Add one sentence in the components overview: prism/list can render a
+- [x] Add one sentence in the components overview: prism/list can render a
       visible scrollbar via `list.LayoutScrollbar` (Occupy or Overlay).
-- [ ] Commit and push workbench.
+- [x] Commit and push workbench.
 
 #### G4.1.2: mindchat adoption
 

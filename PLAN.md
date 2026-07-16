@@ -428,15 +428,15 @@ behaviour must not change — the whole phase is additive (ADR-006).
 
 #### G2.1.2: Overlay anchor and goldens
 
-- [ ] Implement `Overlay`: identical except constraints are NOT reserved and
+- [x] Implement `Overlay`: identical except constraints are NOT reserved and
       dims are NOT re-widened — the bar draws over the trailing edge.
-- [ ] Goldens in `list/`: `scrollbar-occupy` (rows visibly narrower, bar in
+- [x] Goldens in `list/`: `scrollbar-occupy` (rows visibly narrower, bar in
       its gutter, thumb mid-list) and `scrollbar-overlay` (rows full width,
       bar over them) at the same size as the existing list goldens;
       regenerate, eyeball (Read the PNGs), re-run clean.
-- [ ] Confirm a non-scrollable case (3 rows, tall viewport) renders NO bar
+- [x] Confirm a non-scrollable case (3 rows, tall viewport) renders NO bar
       and dims match plain `Layout` — add it as a unit test, not a golden.
-- [ ] Gates green.
+- [x] Gates green.
 
 #### G2.1.3: Gallery upgrade and package docs
 

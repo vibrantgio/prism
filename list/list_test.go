@@ -13,6 +13,8 @@ import (
 
 	golden "github.com/vibrantgio/prism/internal/golden"
 	"github.com/vibrantgio/prism/list"
+	"github.com/vibrantgio/prism/scrollbar"
+	"github.com/vibrantgio/prism/tokens"
 )
 
 const (
@@ -66,6 +68,73 @@ func TestListGolden(t *testing.T) {
 				return list.Layout(gtx, state, items, colorRowFn)
 			})
 		})
+	}
+}
+
+// TestScrollbarGolden records or diffs the two scrollbar anchor modes at the
+// same viewport size as the plain list goldens, scrolled into the middle of a
+// 20-item list so the thumb sits mid-track:
+//
+//   - scrollbar-occupy: rows are visibly narrower, the bar sits in its own
+//     gutter along the east edge.
+//   - scrollbar-overlay: rows span the full viewport width, the bar floats
+//     over their trailing edge.
+func TestScrollbarGolden(t *testing.T) {
+	size := image.Pt(viewW, viewH)
+	bar := scrollbar.FromTokens(tokens.DefaultLight)
+	cases := []struct {
+		name   string
+		anchor list.Anchor
+	}{
+		{"scrollbar-occupy", list.Occupy},
+		{"scrollbar-overlay", list.Overlay},
+	}
+	for _, tc := range cases {
+		anchor := tc.anchor
+		t.Run(tc.name, func(t *testing.T) {
+			items := makeItems(20)
+			state := list.NewStateAt(8)
+			golden.Render(t, tc.name, size, func(gtx layout.Context) layout.Dimensions {
+				return list.LayoutScrollbar(gtx, state, bar, anchor, items, colorRowFn)
+			})
+		})
+	}
+}
+
+// TestLayoutScrollbarNonScrollable confirms that when all items fit in the
+// viewport (3 rows in a tall viewport) LayoutScrollbar renders no bar: the
+// Overlay output is pixel-identical to plain Layout and both anchors report
+// the same dimensions as plain Layout.
+func TestLayoutScrollbarNonScrollable(t *testing.T) {
+	size := image.Pt(viewW, 300) // 3 rows of 30px in a 300px viewport
+	bar := scrollbar.FromTokens(tokens.DefaultLight)
+
+	var plainDims layout.Dimensions
+	plainImg := golden.Capture(t, size, func(gtx layout.Context) layout.Dimensions {
+		plainDims = list.Layout(gtx, list.NewState(), makeItems(3), colorRowFn)
+		return plainDims
+	})
+
+	var overlayDims layout.Dimensions
+	overlayImg := golden.Capture(t, size, func(gtx layout.Context) layout.Dimensions {
+		overlayDims = list.LayoutScrollbar(gtx, list.NewState(), bar, list.Overlay, makeItems(3), colorRowFn)
+		return overlayDims
+	})
+
+	if overlayDims != plainDims {
+		t.Errorf("Overlay dims = %v; want %v (same as plain Layout)", overlayDims, plainDims)
+	}
+	if n := golden.PixelDiff(plainImg, overlayImg); n != 0 {
+		t.Errorf("Overlay output differs from plain Layout by %d pixel(s); want 0 (no bar rendered)", n)
+	}
+
+	var occupyDims layout.Dimensions
+	golden.Capture(t, size, func(gtx layout.Context) layout.Dimensions {
+		occupyDims = list.LayoutScrollbar(gtx, list.NewState(), bar, list.Occupy, makeItems(3), colorRowFn)
+		return occupyDims
+	})
+	if occupyDims != plainDims {
+		t.Errorf("Occupy dims = %v; want %v (same as plain Layout)", occupyDims, plainDims)
 	}
 }
 

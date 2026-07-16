@@ -343,15 +343,15 @@ viewportStart, viewportEnd float32) layout.Dimensions`.
 
 Model the test file on `list/list_test.go`.
 
-- [ ] Golden cases in `scrollbar/scrollbar_test.go`, rendered at 24×400 on a
+- [x] Golden cases in `scrollbar/scrollbar_test.go`, rendered at 24×400 on a
       Surface-filled background: `light-top` (0, 0.3), `light-mid`
       (0.35, 0.65), `dark-mid` (same fractions, `DefaultDark`),
       `light-bottom` (0.7, 1.0), and `min-thumb` (0.5, 0.501 — proves the
       16dp clamp).
-- [ ] Generate with `-update`, eyeball each PNG (Read them — thumb visible,
+- [x] Generate with `-update`, eyeball each PNG (Read them — thumb visible,
       pill-shaped, positioned as named, colours differ light/dark), then run
       without `-update` to confirm stability.
-- [ ] Gates green.
+- [x] Gates green.
 
 #### G1.2.2: Gallery section
 

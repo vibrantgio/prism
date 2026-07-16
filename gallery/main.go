@@ -32,6 +32,7 @@ import (
 	"github.com/vibrantgio/prism/input"
 	prismlayout "github.com/vibrantgio/prism/layout"
 	"github.com/vibrantgio/prism/list"
+	"github.com/vibrantgio/prism/scrollbar"
 	"github.com/vibrantgio/prism/theme"
 	"github.com/vibrantgio/prism/tokens"
 
@@ -92,6 +93,13 @@ type gallery struct {
 	// List page
 	listSt    *list.State
 	listItems []string
+
+	// Scrollbar demo (List page): a tall fake-content column laid out with a
+	// raw layout.List (its Position is readable, unlike list.State's) plus a
+	// standalone scrollbar driven by FromListPosition fractions.
+	sbList  layout.List
+	sbState *scrollbar.State
+	sbItems []string
 
 	// Icon page
 	iconReg   *icon.Registry
@@ -225,6 +233,14 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 	g.listItems = make([]string, 50)
 	for i := range g.listItems {
 		g.listItems[i] = fmt.Sprintf("Item %d — virtual scrolling: only visible rows are laid out", i+1)
+	}
+
+	// Scrollbar demo: tall fake content plus a standalone bar.
+	g.sbList = layout.List{Axis: layout.Vertical}
+	g.sbState = scrollbar.NewState()
+	g.sbItems = make([]string, 100)
+	for i := range g.sbItems {
+		g.sbItems[i] = fmt.Sprintf("Fake content row %d of %d", i+1, len(g.sbItems))
 	}
 
 	// Icon registry — register the IVG icon and obtain a render widget from it.
@@ -672,8 +688,53 @@ func (g *gallery) pageList(gtx layout.Context) layout.Dimensions {
 					},
 				)
 			}),
+			g.sectionHeader("Scrollbar — standalone bar beside tall fake content (drag the thumb, click the track, hover)"),
+			layout.Rigid(g.scrollbarDemo),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return prismlayout.InsetXY(24, 8).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return g.label(gtx,
+						"scrollbar.FromTokens(...).Layout with fractions from scrollbar.FromListPosition; drags feed back via ScrollDistance.",
+						tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
+				})
+			}),
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, cs...)
+	})
+}
+
+// scrollbarDemo lays out a 300dp-tall fake-content column with a standalone
+// scrollbar beside it. The bar's fractions come from FromListPosition over the
+// raw layout.List position, and scrollbar drags and track clicks are fed back
+// into the list via ScrollDistance.
+func (g *gallery) scrollbarDemo(gtx layout.Context) layout.Dimensions {
+	return prismlayout.InsetXY(24, 12).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		h := gtx.Dp(unit.Dp(300))
+		gtx.Constraints.Max.Y = h
+		gtx.Constraints.Min.Y = h
+		style := scrollbar.FromTokens(tokens.DefaultLight)
+		barW := gtx.Dp(style.Width())
+		// Both children are Rigid so the list lays out first: the bar then
+		// reads this frame's scroll position instead of lagging one frame.
+		return layout.Flex{}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Max.X -= barW
+				gtx.Constraints.Min = gtx.Constraints.Max
+				return g.sbList.Layout(gtx, len(g.sbItems), func(gtx layout.Context, i int) layout.Dimensions {
+					return prismlayout.InsetXY(0, 8).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return g.label(gtx, g.sbItems[i], tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
+					})
+				})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				start, end := scrollbar.FromListPosition(g.sbList.Position, len(g.sbItems), h)
+				dims := style.Layout(gtx, g.sbState, layout.Vertical, start, end)
+				if d := g.sbState.ScrollDistance(); d != 0 {
+					g.sbList.ScrollBy(d * float32(len(g.sbItems)))
+					g.win.Invalidate()
+				}
+				return dims
+			}),
+		)
 	})
 }
 

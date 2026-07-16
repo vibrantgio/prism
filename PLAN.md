@@ -355,14 +355,31 @@ Model the test file on `list/list_test.go`.
 
 #### G1.2.2: Gallery section
 
-- [ ] Add a "Scrollbar" section to `gallery/main.go`: a tall fake-content
+- [x] Add a "Scrollbar" section to `gallery/main.go`: a tall fake-content
       column with a standalone bar driven by fractions from its
       `list.State` sibling demo, or simplest honest equivalent — the point
       is a draggable, hoverable bar on screen.
-- [ ] `go run ./gallery` (a window opens on this machine): drag the thumb,
+- [x] `go run ./gallery` (a window opens on this machine): drag the thumb,
       click the track, hover — confirm colour change and motion; note
       anything odd in the task body before checking off.
-- [ ] Gates green.
+- [x] Gates green.
+
+Verification note (2026-07-16, agent session): `go run ./gallery` could not
+open a window from this session — it panics during window init with
+"runtime/cgo: misuse of an invalid Handle" in gio v0.9.0 `os_macos.go`
+(`gio_onDestroy` via `CFRelease` in `(*window).init`). This is pre-existing:
+the unmodified gallery at HEAD crashes identically, so it is environmental
+(agent shell has no usable WindowServer attachment), not caused by this
+change. Verified instead by rendering `scrollbarDemo` headlessly through
+`internal/golden.Capture` at 600×360: frame at top shows the pill thumb at
+the track top; after `ScrollBy(45)` the thumb sits mid-track at ~45/100 —
+fractions and motion confirmed. Not verified interactively: pointer drag,
+track click, and hover colour change (those paths are `widget.Scrollbar`
+plumbing plus the hover-colour branch already covered by scrollbar goldens).
+Drag/track clicks feed back via `State.ScrollDistance()` →
+`layout.List.ScrollBy`, the same wiring material.List uses. Please give the
+Scrollbar section on the List page a quick manual drag/hover when a window
+is available.
 
 ## Phase P2: prism/list integration
 

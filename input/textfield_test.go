@@ -6,6 +6,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/font/gofont"
+	"gioui.org/io/event"
 	gioinput "gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -345,5 +346,39 @@ func TestTextFieldSeedPrefillsEditor(t *testing.T) {
 
 	if gotSubmit != "hello" {
 		t.Errorf("OnSubmit got %q, want the seed %q (Seed must be editor content, not a placeholder)", gotSubmit, "hello")
+	}
+}
+
+// TestTextFieldFocusTagExposesEditor proves FocusTag hands out the live
+// editor's focus tag: focusing that tag programmatically then typing —
+// without any click — reaches the editor (the mechanics cadence/modal's
+// Tab cycle and initial focus rely on).
+func TestTextFieldFocusTagExposesEditor(t *testing.T) {
+	var tag event.Tag
+	var gotChanges []string
+	props := input.TextFieldProps{
+		FocusTag: func(tg event.Tag) { tag = tg },
+		OnChange: func(_ layout.Context, s string) { gotChanges = append(gotChanges, s) },
+	}
+	w := liveTextField(t, props)
+	if tag == nil {
+		t.Fatal("FocusTag was not called at field creation")
+	}
+
+	r := new(gioinput.Router)
+	ops := new(op.Ops)
+	size := image.Pt(300, 60)
+
+	// Frame 1 registers the editor; then focus its tag programmatically.
+	driveTextFieldFrame(w, ops, r, size)
+	r.Source().Execute(key.FocusCmd{Tag: tag})
+	driveTextFieldFrame(w, ops, r, size)
+
+	// Type without clicking: only a focused editor receives edit events.
+	r.Queue(key.EditEvent{Range: key.Range{Start: 0, End: 0}, Text: "ok"})
+	driveTextFieldFrame(w, ops, r, size)
+
+	if len(gotChanges) == 0 || gotChanges[len(gotChanges)-1] != "ok" {
+		t.Fatalf("OnChange after focusing via FocusTag = %v, want [... ok]", gotChanges)
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"gioui.org/font"
 	"gioui.org/font/gofont"
+	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
@@ -54,6 +55,13 @@ type TextFieldProps struct {
 	// instance — rebuild the field (e.g. keyed on an epoch, the modal-form
 	// pattern) to reseed it.
 	Seed string
+
+	// FocusTag, if non-nil, is called once when the field instance is
+	// created, with the editor's focus tag — for callers that manage a
+	// focus cycle (e.g. cadence/modal's Tab trap) and need to include the
+	// field in it. A rebuilt field (new epoch) calls it again with the new
+	// instance's tag.
+	FocusTag func(tag event.Tag)
 
 	// Mask, when non-zero, hides the entered text by rendering every rune as
 	// this one (e.g. '•' for a password or secret field). The unmasked value is
@@ -132,6 +140,9 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 		editor := &widget.Editor{SingleLine: true, Submit: props.Submit, Mask: props.Mask}
 		if props.Seed != "" {
 			editor.SetText(props.Seed)
+		}
+		if props.FocusTag != nil {
+			props.FocusTag(editor)
 		}
 		shaper := props.Shaper
 		if shaper == nil {

@@ -487,9 +487,13 @@ existing `list` unit/golden tests from G2.1.1/G2.1.2).
 
 #### G3.1.2: Release v0.0.5
 
-- [ ] Sweep: `gofmt -l .` empty, `go vet ./...`, `go test ./...`,
+- [x] Sweep: `gofmt -l .` empty, `go vet ./...`, `go test ./...`,
       `go run ./gallery` launches.
-- [ ] Commit the scrollbar work on master with a message naming the new
+      Note: `go run ./gallery` panics on window init in this agent
+      environment ("runtime/cgo: misuse of an invalid Handle", gio v0.9.0
+      os_macos.go) — pre-existing and environmental (see G1.2.2/G2.1.3);
+      verified `go build ./gallery` succeeds instead.
+- [x] Commit the scrollbar work on master with a message naming the new
       package and the list entry point (Co-Authored-By trailer per repo
       convention), then `git tag v0.0.5` (lightweight, matching v0.0.4) and
       `git push origin master v0.0.5`.

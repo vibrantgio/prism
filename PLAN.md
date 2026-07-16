@@ -532,13 +532,31 @@ pushed (P3).
 
 #### G4.1.2: mindchat adoption
 
-- [ ] In `../mindchat`: `go get github.com/vibrantgio/prism@v0.0.5`, then
+- [x] In `../mindchat`: `go get github.com/vibrantgio/prism@v0.0.5`, then
       replace the chat-history `layout.List` and the sidebar `layout.List`
       (both allocated at subscription scope in `view.go`'s ContentLayer)
       with `list.NewState()` + `list.LayoutScrollbar(…, list.Overlay, …)`,
       deriving each pane's `scrollbar.Style` from the same
       `tokens.ColorTokens` the `Palette` comes from (extend `themed` if
       needed).
-- [ ] `go test ./...` in mindchat (wiring test must still measure 1
+- [x] `go test ./...` in mindchat (wiring test must still measure 1
       consumer), launch the app, and confirm both bars render and drag.
-- [ ] Commit and push mindchat.
+- [x] Commit and push mindchat.
+
+VERIFICATION NOTE (2026-07-16): launching mindchat still panics on window
+init in this environment ("runtime/cgo: misuse of an invalid Handle", gio
+v0.9.0 os_macos.go — the pre-existing environmental issue recorded under
+G1.2.2/G2.1.3/G3.1.2), so the bars could not be exercised interactively.
+Verified headlessly instead via a temporary `gioui.org/gpu/headless`
+capture test in mindchat (deleted before commit): rendered `Sidebar` (40
+chats, 260x400) and `ChatPane` (30 messages, 600x400) at scroll top and
+mid-scroll (`list.NewStateAt`). PNGs confirmed: both panes draw the
+overlay bar on the trailing edge over full-width rows, with the thumb at
+the top when unscrolled and proportionally mid-track when scrolled. All
+mindchat tests pass (wiring test still measures 1 consumer); gofmt/vet
+clean; builds green both in-workspace and with GOWORK=off against the
+v0.0.5 pin. NOT verified: live thumb-drag and track-click in a real
+window (those interaction paths are covered by prism's `list` unit tests
+from G2.1.1/G2.1.2). Behaviour note: the history pane's former
+`ScrollToEnd: true` is not expressible through `prism/list.State`, so
+auto-follow of new messages is dropped by this swap.

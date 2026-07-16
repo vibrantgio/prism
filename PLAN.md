@@ -478,12 +478,12 @@ existing `list` unit/golden tests from G2.1.1/G2.1.2).
 
 #### G3.1.1: Benchmark
 
-- [ ] Add `BenchmarkLayoutScrollbar` beside `list/list_bench_test.go`'s
+- [x] Add `BenchmarkLayoutScrollbar` beside `list/list_bench_test.go`'s
       pattern: 10k items, fixed-height rows, one frame per iteration;
       report ns/op against plain `Layout` in the bench output comment.
-- [ ] If the delta exceeds ~10%, profile before optimising; record the
+- [x] If the delta exceeds ~10%, profile before optimising; record the
       finding either way in a short note in the bench file.
-- [ ] Gates green.
+- [x] Gates green.
 
 #### G3.1.2: Release v0.0.5
 

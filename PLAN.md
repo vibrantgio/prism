@@ -440,12 +440,26 @@ behaviour must not change — the whole phase is additive (ADR-006).
 
 #### G2.1.3: Gallery upgrade and package docs
 
-- [ ] Switch the gallery's 50-item list demo to `LayoutScrollbar(…, Occupy,
+- [x] Switch the gallery's 50-item list demo to `LayoutScrollbar(…, Occupy,
       …)` and add an Overlay variant beside it; `go run ./gallery` and
       exercise both with wheel + thumb-drag + track-click.
-- [ ] Update the `list` package doc to name both entry points and when to
+- [x] Update the `list` package doc to name both entry points and when to
       pick which anchor; cross-reference `scrollbar.FromTokens`.
-- [ ] Gates green.
+- [x] Gates green.
+
+VERIFICATION NOTE (2026-07-16): `go run ./gallery` still panics on window
+init in this environment ("runtime/cgo: misuse of an invalid Handle", gio
+v0.9.0 os_macos.go — the pre-existing environmental issue recorded under
+G1.2.2), so the demo could not be exercised interactively. Verified
+headlessly instead via a temporary `internal/golden.Capture` test (deleted
+before commit): rendered `listScrollbarDemo` at scroll top and mid-scroll
+(via `list.NewStateAt`) and the full List page. PNGs confirmed: both
+columns render; Occupy rows are visibly narrower than Overlay rows (gutter
+reserved vs bar floating over full-width rows); thumbs sit at the top when
+unscrolled and proportionally mid-track when scrolled; captures differ
+(PixelDiff > 0). NOT verified: live wheel scrolling, thumb-drag, and
+track-click in a real window (those interaction paths are covered by the
+existing `list` unit/golden tests from G2.1.1/G2.1.2).
 
 ## Phase P3: hardening and release
 

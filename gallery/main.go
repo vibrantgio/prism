@@ -90,9 +90,11 @@ type gallery struct {
 	// Scroll state — one per page, allocated once so scroll position survives frames.
 	scrollSt [8]*list.State
 
-	// List page
-	listSt    *list.State
-	listItems []string
+	// List page: one state per LayoutScrollbar variant so the two lists
+	// scroll independently.
+	listSt        *list.State
+	listOverlaySt *list.State
+	listItems     []string
 
 	// Scrollbar demo (List page): a tall fake-content column laid out with a
 	// raw layout.List (its Position is readable, unlike list.State's) plus a
@@ -230,6 +232,7 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 
 	// List demo.
 	g.listSt = list.NewState()
+	g.listOverlaySt = list.NewState()
 	g.listItems = make([]string, 50)
 	for i := range g.listItems {
 		g.listItems[i] = fmt.Sprintf("Item %d — virtual scrolling: only visible rows are laid out", i+1)
@@ -677,16 +680,14 @@ func (g *gallery) dropdownVariantRows() []layout.FlexChild {
 func (g *gallery) pageList(gtx layout.Context) layout.Dimensions {
 	return g.scrollPage(gtx, g.scrollSt[pageList], func(gtx layout.Context) layout.Dimensions {
 		cs := []layout.FlexChild{
-			g.sectionHeader(fmt.Sprintf("List — %d items, virtual scrolling", len(g.listItems))),
+			g.sectionHeader(fmt.Sprintf("List — %d items, LayoutScrollbar: Occupy (left) vs Overlay (right)", len(g.listItems))),
+			layout.Rigid(g.listScrollbarDemo),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(400))
-				return list.Layout(gtx, g.listSt, g.listItems,
-					func(gtx layout.Context, item string) layout.Dimensions {
-						return prismlayout.InsetXY(24, 10).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return g.label(gtx, item, tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
-						})
-					},
-				)
+				return prismlayout.InsetXY(24, 8).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return g.label(gtx,
+						"list.LayoutScrollbar(..., Occupy, ...) reserves a gutter; Overlay floats the bar over the rows. Wheel, thumb-drag, and track-click all scroll.",
+						tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
+				})
 			}),
 			g.sectionHeader("Scrollbar — standalone bar beside tall fake content (drag the thumb, click the track, hover)"),
 			layout.Rigid(g.scrollbarDemo),
@@ -699,6 +700,43 @@ func (g *gallery) pageList(gtx layout.Context) layout.Dimensions {
 			}),
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, cs...)
+	})
+}
+
+// listScrollbarDemo lays out the 50-item list twice, side by side, via
+// list.LayoutScrollbar: the left column anchors the bar with Occupy (a
+// reserved gutter narrows the rows), the right with Overlay (the bar floats
+// over full-width rows). Each column has its own list.State so they scroll
+// independently.
+func (g *gallery) listScrollbarDemo(gtx layout.Context) layout.Dimensions {
+	return prismlayout.InsetXY(24, 12).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		h := gtx.Dp(unit.Dp(400))
+		gtx.Constraints.Max.Y = h
+		bar := scrollbar.FromTokens(tokens.DefaultLight)
+		row := func(gtx layout.Context, item string) layout.Dimensions {
+			return prismlayout.InsetXY(0, 10).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return g.label(gtx, item, tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
+			})
+		}
+		column := func(title string, st *list.State, anchor list.Anchor) layout.Widget {
+			return func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return g.label(gtx, title, tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{Weight: font.Bold})
+					}),
+					layout.Rigid(prismlayout.VSpacer(8)),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min = gtx.Constraints.Max
+						return list.LayoutScrollbar(gtx, st, bar, anchor, g.listItems, row)
+					}),
+				)
+			}
+		}
+		return layout.Flex{}.Layout(gtx,
+			layout.Flexed(0.5, column("Occupy — gutter reserved", g.listSt, list.Occupy)),
+			layout.Rigid(prismlayout.HSpacer(24)),
+			layout.Flexed(0.5, column("Overlay — bar floats over rows", g.listOverlaySt, list.Overlay)),
+		)
 	})
 }
 

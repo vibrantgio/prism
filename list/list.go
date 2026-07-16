@@ -2,6 +2,29 @@
 //
 // Only items in the current viewport are laid out — O(visible), not O(total).
 //
+// # Entry points
+//
+// There are two ways to lay out a list, both driven by the same State:
+//
+//   - [Layout] lays out the bare list: wheel/touch scrolling only, no
+//     scrollbar is drawn.
+//   - [LayoutScrollbar] additionally draws a scrollbar along the list's
+//     trailing edge, wired to the scroll position; dragging the thumb or
+//     clicking the track scrolls the list.
+//
+// LayoutScrollbar takes an [Anchor] that decides where the bar lives:
+//
+//   - [Occupy] reserves a gutter of the bar's width, narrowing the rows.
+//     Pick it when rows must never be occluded — e.g. text that would
+//     otherwise disappear under the thumb, or rows with interactive
+//     controls at their trailing edge.
+//   - [Overlay] floats the bar over the rows, keeping their full width.
+//     Pick it when every pixel of row width matters and brief occlusion
+//     along the trailing edge is acceptable.
+//
+// The bar's appearance is a scrollbar.Style; derive the default themed one
+// with scrollbar.FromTokens (github.com/vibrantgio/prism/scrollbar).
+//
 // For lists with reorderable rows that contain interactive Gio widgets (editors,
 // checkboxes, etc.), pair with keyed.Defer from prism/keyed to keep per-row
 // widget state stable across reorders.

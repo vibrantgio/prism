@@ -307,23 +307,23 @@ Transliterate R-002 items 1–3 into
 `func (s Style) Layout(gtx layout.Context, state *State, axis layout.Axis,
 viewportStart, viewportEnd float32) layout.Dimensions`.
 
-- [ ] Bail out with zero dims when the range is not scrollable
+- [x] Bail out with zero dims when the range is not scrollable
       (`viewportStart <= 0 && viewportEnd >= 1`) — ADR-004.
-- [ ] Pin constraints axis-independently (`axis.Convert`), call
+- [x] Pin constraints axis-independently (`axis.Convert`), call
       `state.Update(gtx, axis, viewportStart, viewportEnd)` before reading
       hover state, and select `ThumbHoverColor` when
       `state.IndicatorHovered() || state.Dragging()`.
-- [ ] Track pass: clip rect over the bar, `AddDrag`, `pointer.PassOp` +
+- [x] Track pass: clip rect over the bar, `AddDrag`, `pointer.PassOp` +
       clip + `AddTrack`, fill `TrackColor` (transparent default draws
       nothing but the hit areas still register).
-- [ ] Thumb pass: padding insets, thumb length from fractions with the
+- [x] Thumb pass: padding insets, thumb length from fractions with the
       `ThumbMinLen` clamp and end-of-track clamp, `clip.RRect` pill fill,
       `pointer.PassOp` + clip + `AddIndicator`.
-- [ ] Headless render test (no golden yet): lay it out via the
+- [x] Headless render test (no golden yet): lay it out via the
       `internal/golden` harness's context or a bare `op.Ops` at 40×400 with
       fractions (0.25, 0.5) and assert returned dims equal the pinned
       constraints; call again with (0, 1) and assert zero dims.
-- [ ] Gates green.
+- [x] Gates green.
 
 ### G1.2: Proof the core visually — goldens and gallery
 

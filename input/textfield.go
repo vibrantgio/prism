@@ -48,6 +48,13 @@ type TextFieldProps struct {
 	// Description is the screen-reader label. Falls back to Placeholder when empty.
 	Description string
 
+	// Seed, when non-empty, pre-fills the editor when the field instance is
+	// created, so an existing value can be EDITED rather than retyped. The
+	// field stays uncontrolled: later Seed values have no effect on a live
+	// instance — rebuild the field (e.g. keyed on an epoch, the modal-form
+	// pattern) to reseed it.
+	Seed string
+
 	// Mask, when non-zero, hides the entered text by rendering every rune as
 	// this one (e.g. '•' for a password or secret field). The unmasked value is
 	// still delivered through OnChange/Message and the editor's Text(); only the
@@ -123,6 +130,9 @@ func TextField(th rx.Observable[theme.Theme], props TextFieldProps) rx.Observabl
 		// Allocated once per subscription — survives all theme and disabled
 		// emissions for the lifetime of this TextField instance.
 		editor := &widget.Editor{SingleLine: true, Submit: props.Submit, Mask: props.Mask}
+		if props.Seed != "" {
+			editor.SetText(props.Seed)
+		}
 		shaper := props.Shaper
 		if shaper == nil {
 			shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(gofont.Collection()))

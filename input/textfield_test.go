@@ -313,3 +313,37 @@ func TestTextFieldMaskKeepsValue(t *testing.T) {
 		t.Errorf("masked field delivered %q, want unmasked %q", last, "secret")
 	}
 }
+
+// TestTextFieldSeedPrefillsEditor proves Seed is real editor content — an
+// editable value the user can modify — not a placeholder: an untouched
+// seeded field submits the seed itself.
+func TestTextFieldSeedPrefillsEditor(t *testing.T) {
+	var gotSubmit string
+	props := input.TextFieldProps{
+		Seed:     "hello",
+		Submit:   true,
+		OnSubmit: func(_ layout.Context, s string) { gotSubmit = s },
+	}
+	w := liveTextField(t, props)
+
+	r := new(gioinput.Router)
+	ops := new(op.Ops)
+	size := image.Pt(300, 60)
+
+	// Frame 1 — register regions; frame 2 — click focuses the editor.
+	dims := driveTextFieldFrame(w, ops, r, size)
+	centre := f32.Pt(float32(dims.Size.X)/2, float32(dims.Size.Y)/2)
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+		pointer.Event{Kind: pointer.Release, Position: centre, Buttons: pointer.ButtonPrimary, Source: pointer.Mouse},
+	)
+	driveTextFieldFrame(w, ops, r, size)
+
+	// Submit without typing anything.
+	r.Queue(key.EditEvent{Range: key.Range{Start: 0, End: 0}, Text: "\n"})
+	driveTextFieldFrame(w, ops, r, size)
+
+	if gotSubmit != "hello" {
+		t.Errorf("OnSubmit got %q, want the seed %q (Seed must be editor content, not a placeholder)", gotSubmit, "hello")
+	}
+}

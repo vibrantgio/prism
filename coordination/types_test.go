@@ -15,11 +15,11 @@ func TestSubjectReturnsBothSides(t *testing.T) {
 	obs, stream := coordination.Subject[int](coordination.BufCapSignal)
 
 	done := make(chan int, 1)
-	sub := stream.Subscribe(func(next int, err error, complete bool) {
+	sub := stream.Subscribe(rx.GoroutineContext(), func(next int, err error, complete bool) {
 		if !complete {
 			done <- next
 		}
-	}, rx.Goroutine)
+	})
 	defer sub.Unsubscribe()
 
 	obs(42, nil, false)

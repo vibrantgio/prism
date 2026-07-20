@@ -1,6 +1,7 @@
 package input_test
 
 import (
+	"context"
 	"image"
 	"testing"
 
@@ -58,11 +59,11 @@ func BenchmarkTextFieldCaretBlink(b *testing.B) {
 	}
 
 	var w layout.Widget
-	if err := input.TextField(rx.Of(theme.Default()), props).Subscribe(func(next layout.Widget, _ error, done bool) {
+	if err := input.TextField(rx.Of(theme.Default()), props).Subscribe(context.Background(), func(next layout.Widget, _ error, done bool) {
 		if !done && next != nil {
 			w = next
 		}
-	}, rx.NewScheduler()).Wait(); err != nil {
+	}).Wait(); err != nil {
 		b.Fatalf("TextField subscribe: %v", err)
 	}
 	if w == nil {

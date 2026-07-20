@@ -1,10 +1,12 @@
 package theme_test
 
-// rx.TestScheduler does not exist in github.com/reactivego/rx v0.2.2; tests
-// use rx.NewScheduler() (serial trampoline) instead, which provides the same
-// deterministic, synchronous execution needed to verify emission shape.
+// rx.TestScheduler does not exist in github.com/reactivego/rx; tests rely on
+// Subscribe's default serial trampoline scheduler (context without a scheduler
+// attached), which provides the deterministic, synchronous execution needed to
+// verify emission shape.
 
 import (
+	"context"
 	"testing"
 
 	"github.com/reactivego/rx"
@@ -15,12 +17,11 @@ import (
 // collect subscribes to obs synchronously and returns all emitted values.
 func collect[T any](obs rx.Observable[T]) ([]T, error) {
 	var out []T
-	sched := rx.NewScheduler()
-	err := obs.Subscribe(func(v T, err error, done bool) {
+	err := obs.Subscribe(context.Background(), func(v T, err error, done bool) {
 		if !done {
 			out = append(out, v)
 		}
-	}, sched).Wait()
+	}).Wait()
 	return out, err
 }
 

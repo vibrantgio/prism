@@ -1,6 +1,7 @@
 package input_test
 
 import (
+	"context"
 	"image"
 	"testing"
 
@@ -154,11 +155,11 @@ func liveTextField(t *testing.T, props input.TextFieldProps) layout.Widget {
 	}
 	obs := input.TextField(rx.Of(theme.Default()), props)
 	var w layout.Widget
-	if err := obs.Subscribe(func(next layout.Widget, _ error, done bool) {
+	if err := obs.Subscribe(context.Background(), func(next layout.Widget, _ error, done bool) {
 		if !done && next != nil {
 			w = next
 		}
-	}, rx.NewScheduler()).Wait(); err != nil {
+	}).Wait(); err != nil {
 		t.Fatalf("TextField subscribe: %v", err)
 	}
 	if w == nil {

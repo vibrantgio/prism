@@ -56,11 +56,11 @@ func setup(t *testing.T) (rx.Observer[[]Item], <-chan []*RowState, *keyed.Deferr
 			states[i] = d.For(item.ID)
 		}
 		return states
-	}).Subscribe(func(next []*RowState, err error, done bool) {
+	}).Subscribe(rx.GoroutineContext(), func(next []*RowState, err error, done bool) {
 		if !done {
 			results <- next
 		}
-	}, rx.Goroutine)
+	})
 
 	return send, results, d, func() { sub.Unsubscribe() }
 }

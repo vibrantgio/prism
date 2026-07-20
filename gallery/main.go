@@ -262,32 +262,26 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 	}
 
 	// A11y: live OS preference polling on Goroutine scheduler.
-	g.a11ySub = a11y.Live(2*time.Second).Subscribe(
-		func(p a11y.A11yPrefs, err error, done bool) {
-			if !done {
-				g.prefsMu.Lock()
-				g.prefs = p
-				g.prefsMu.Unlock()
-				w.Invalidate()
-			}
-		},
-		rx.Goroutine,
-	)
+	g.a11ySub = a11y.Live(2*time.Second).Subscribe(rx.GoroutineContext(), func(p a11y.A11yPrefs, err error, done bool) {
+		if !done {
+			g.prefsMu.Lock()
+			g.prefs = p
+			g.prefsMu.Unlock()
+			w.Invalidate()
+		}
+	})
 
 	// Coordination: Subject[string] for producer/consumer demo.
 	var coordObs rx.Observable[string]
 	g.coordObserver, coordObs = coordination.Subject[string](coordination.BufCapSignal)
-	g.coordSub = coordObs.Subscribe(
-		func(msg string, err error, done bool) {
-			if !done {
-				g.coordMu.Lock()
-				g.coordMsg = msg
-				g.coordMu.Unlock()
-				w.Invalidate()
-			}
-		},
-		rx.Goroutine,
-	)
+	g.coordSub = coordObs.Subscribe(rx.GoroutineContext(), func(msg string, err error, done bool) {
+		if !done {
+			g.coordMu.Lock()
+			g.coordMsg = msg
+			g.coordMu.Unlock()
+			w.Invalidate()
+		}
+	})
 
 	return g
 }

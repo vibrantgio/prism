@@ -1,6 +1,7 @@
 package button_test
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"testing"
@@ -302,11 +303,11 @@ func TestButtonInjectedClickableFocusAndActivate(t *testing.T) {
 		Shaper:      shaper,
 	})
 	var w layout.Widget
-	if err := obs.Subscribe(func(next layout.Widget, _ error, done bool) {
+	if err := obs.Subscribe(context.Background(), func(next layout.Widget, _ error, done bool) {
 		if !done && next != nil {
 			w = next
 		}
-	}, rx.NewScheduler()).Wait(); err != nil {
+	}).Wait(); err != nil {
 		t.Fatalf("Button subscribe: %v", err)
 	}
 	if w == nil {

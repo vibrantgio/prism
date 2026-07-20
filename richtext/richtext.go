@@ -1,0 +1,282 @@
+// Package richtext provides the Prism inline styled-text primitive: a span
+// model with wrapped paragraph layout and interactive link spans
+// (DESIGN §Markdown).
+//
+// # Entry points
+//
+// There are two ways to lay out a paragraph, both driven by the same span
+// slice:
+//
+//   - [Layout] is the live path: it drains link events (pointer clicks,
+//     keyboard activation, focus changes) from state, fires
+//     [Style].OnLinkClick, and renders hover/focus treatments from the real
+//     interaction state.
+//   - [Render] is the static path: it renders an explicit [RenderState]
+//     without any event processing. Intended for golden-image testing and
+//     static demonstrations.
+//
+// # Links and accessibility
+//
+// A span with a non-empty URL is a hyperlink. Consecutive spans sharing the
+// same URL form one link. Links render underlined in [Style].LinkColor, show
+// the pointer cursor on hover, and participate in window Tab traversal: each
+// link registers a focus tag, so Gio's default Tab handling moves focus
+// across them, and the focused link draws a visible focus ring
+// (DESIGN §Accessibility). Space or Enter on a focused link fires
+// OnLinkClick, which carries the frame's layout.Context per GX.8 so
+// consumers can emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the
+// callback. Inline links are text-sized: the 44 dp hit-target rule does not
+// apply to inline text links (WCAG 2.5.5 inline exception).
+//
+// # Zero dependencies
+//
+// The package is built directly on Gio's text shaper. gioui.org/x/richtext
+// and gioui.org/x/styledtext served as reference material for the span-model
+// shape and the wrapping algorithm; neither is a dependency.
+package richtext
+
+import (
+	"image/color"
+
+	"gioui.org/font"
+	"gioui.org/gesture"
+	"gioui.org/io/key"
+	"gioui.org/layout"
+	"gioui.org/text"
+	"gioui.org/unit"
+
+	"github.com/vibrantgio/prism/tokens"
+)
+
+// SpanStyle describes one run of styled text within a paragraph: the span
+// model {font, weight, style, size, colour, link URL}.
+type SpanStyle struct {
+	// Typeface names the font families to try (e.g. "Go Mono, monospace").
+	// Empty uses the shaper's default face.
+	Typeface font.Typeface
+	// Weight is the font weight. The zero value is font.Normal.
+	Weight font.Weight
+	// Style is the slant. The zero value is font.Regular.
+	Style font.Style
+	// Size is the text size. Zero falls back to the paragraph default
+	// ([Style].Size, BodyLarge when derived via FromTokens).
+	Size unit.Sp
+	// Color is the text colour. The zero value falls back to the paragraph
+	// default: [Style].Color, or [Style].LinkColor when URL is set.
+	Color color.NRGBA
+	// Content is the text of the span.
+	Content string
+	// URL, when non-empty, marks the span as a hyperlink. Consecutive spans
+	// with the same URL are grouped into a single link for interaction.
+	URL string
+}
+
+// Font assembles the gio font selector from the span's typeface, slant, and
+// weight fields.
+func (s SpanStyle) Font() font.Font {
+	return font.Font{Typeface: s.Typeface, Style: s.Style, Weight: s.Weight}
+}
+
+// Style holds the themed paragraph defaults and the link callback. Derive the
+// token-themed default with [FromTokens], then set OnLinkClick.
+type Style struct {
+	// Color is the text colour for spans with a zero Color.
+	Color color.NRGBA
+	// LinkColor is the text colour for link spans with a zero Color.
+	LinkColor color.NRGBA
+	// FocusColor is the focus-ring colour drawn around the focused link.
+	FocusColor color.NRGBA
+	// Size is the text size for spans with a zero Size.
+	Size unit.Sp
+	// OnLinkClick is called when a link is activated by pointer click or by
+	// Space/Enter while focused. The gtx argument is the layout.Context
+	// active on the frame the activation is processed (GX.8), allowing
+	// consumers to emit mvu.MessageOp{Message: ...}.Add(gtx.Ops) inside the
+	// callback.
+	OnLinkClick func(gtx layout.Context, url string)
+}
+
+// FromTokens derives the default paragraph style from colour tokens and the
+// type scale: body text in OnBackground at BodyLarge, links in Primary, and
+// the focus ring in Outline (matching prism/button's ring colour).
+func FromTokens(c tokens.ColorTokens, ts tokens.TypeScale) Style {
+	return Style{
+		Color:      c.OnBackground,
+		LinkColor:  c.Primary,
+		FocusColor: c.Outline,
+		Size:       unit.Sp(ts.BodyLarge),
+	}
+}
+
+// NoLink marks the absence of a link index in a [RenderState].
+const NoLink = -1
+
+// RenderState holds explicit visual interaction state for static rendering
+// via [Render]. Link indices count links (not spans) in document order;
+// consecutive spans sharing a URL are one link. Use [Idle] for the state with
+// no interaction — the zero value refers to link 0.
+type RenderState struct {
+	// HoveredLink is the index of the link drawn in its hovered treatment;
+	// NoLink for none.
+	HoveredLink int
+	// FocusedLink is the index of the link drawn with the focus ring; NoLink
+	// for none.
+	FocusedLink int
+}
+
+// Idle returns the RenderState with no link hovered or focused.
+func Idle() RenderState {
+	return RenderState{HoveredLink: NoLink, FocusedLink: NoLink}
+}
+
+// State holds the interaction state of a paragraph's links across frames.
+// Allocate once per paragraph instance and reuse on every frame.
+type State struct {
+	links []*linkState
+}
+
+// NewState returns a State for a paragraph with no interaction history.
+func NewState() *State { return &State{} }
+
+// linkState is the per-link persistent interaction state. Its pointer
+// identity doubles as the link's focus/event tag, so links keep focus and
+// in-flight gestures across frames and re-layouts.
+type linkState struct {
+	click      gesture.Click
+	url        string
+	pressedKey key.Name
+}
+
+// sync makes the state track exactly n links, preserving the identity (and
+// therefore focus and gesture state) of surviving indices, and records each
+// link's URL for event dispatch.
+func (s *State) sync(resolved []resolvedSpan, n int) {
+	if len(s.links) > n {
+		s.links = s.links[:n]
+	}
+	for len(s.links) < n {
+		s.links = append(s.links, &linkState{})
+	}
+	for _, r := range resolved {
+		if r.link >= 0 {
+			s.links[r.link].url = r.url
+		}
+	}
+}
+
+// HoveredLink returns the index of the link currently under the pointer, or
+// NoLink if none. Valid after the previous frame's Layout.
+func (s *State) HoveredLink() int {
+	for i, l := range s.links {
+		if l.click.Hovered() {
+			return i
+		}
+	}
+	return NoLink
+}
+
+// FocusedLink returns the index of the link currently holding keyboard
+// focus, or NoLink if none. Valid after the previous frame's Layout.
+func (s *State) FocusedLink(gtx layout.Context) int {
+	for i, l := range s.links {
+		if gtx.Focused(l) {
+			return i
+		}
+	}
+	return NoLink
+}
+
+// Layout is the live path: it processes link input (clicks, keyboard
+// activation, focus), fires style.OnLinkClick, and lays out the wrapped
+// paragraph with hover and focus treatments from the real interaction state.
+//
+// Spans wrap within gtx.Constraints.Max.X. The returned baseline is that of
+// the paragraph's last line.
+func Layout(gtx layout.Context, state *State, shaper *text.Shaper, style Style, spans []SpanStyle) layout.Dimensions {
+	rs := processInput(gtx, state, style)
+	dims := draw(gtx, shaper, style, spans, rs, state)
+	// Links created by this frame's draw (their first layout) must register
+	// their event filters within the same frame their areas appear, or the
+	// router would drop events arriving before the next frame. Draining
+	// again is idempotent for links that already registered above.
+	processInput(gtx, state, style)
+	return dims
+}
+
+// Render produces a layout.Widget for a paragraph in an explicit visual
+// state, without any event processing. Intended for golden-image testing and
+// static demonstrations; production code should use [Layout].
+func Render(shaper *text.Shaper, style Style, spans []SpanStyle, s RenderState) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return draw(gtx, shaper, style, spans, s, nil)
+	}
+}
+
+// processInput drains this frame's events for every link registered on the
+// previous frame and dispatches them: pointer click or Space/Enter while
+// focused → style.OnLinkClick(gtx, url). It returns the live RenderState
+// (hovered and focused link indices) for the subsequent draw.
+func processInput(gtx layout.Context, state *State, style Style) RenderState {
+	rs := Idle()
+	if state == nil {
+		return rs
+	}
+	for i, l := range state.links {
+		// Pointer clicks.
+		for {
+			e, ok := l.click.Update(gtx.Source)
+			if !ok {
+				break
+			}
+			if e.Kind == gesture.KindClick && style.OnLinkClick != nil {
+				style.OnLinkClick(gtx, l.url)
+			}
+		}
+		// Focus and keyboard activation. Registering the FocusFilter makes
+		// the link focusable, so the window's default Tab handling traverses
+		// it. Space/Enter activates on release after a press while focused,
+		// mirroring widget.Clickable.
+		for {
+			e, ok := gtx.Event(
+				key.FocusFilter{Target: l},
+				key.Filter{Focus: l, Name: key.NameReturn},
+				key.Filter{Focus: l, Name: key.NameSpace},
+			)
+			if !ok {
+				break
+			}
+			switch e := e.(type) {
+			case key.FocusEvent:
+				if e.Focus {
+					l.pressedKey = ""
+				}
+			case key.Event:
+				if !gtx.Focused(l) {
+					break
+				}
+				if e.Name != key.NameReturn && e.Name != key.NameSpace {
+					break
+				}
+				switch e.State {
+				case key.Press:
+					l.pressedKey = e.Name
+				case key.Release:
+					if l.pressedKey != e.Name {
+						break
+					}
+					l.pressedKey = ""
+					if style.OnLinkClick != nil {
+						style.OnLinkClick(gtx, l.url)
+					}
+				}
+			}
+		}
+		if l.click.Hovered() {
+			rs.HoveredLink = i
+		}
+		if gtx.Focused(l) {
+			rs.FocusedLink = i
+		}
+	}
+	return rs
+}

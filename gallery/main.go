@@ -32,6 +32,7 @@ import (
 	"github.com/vibrantgio/prism/input"
 	prismlayout "github.com/vibrantgio/prism/layout"
 	"github.com/vibrantgio/prism/list"
+	"github.com/vibrantgio/prism/richtext"
 	"github.com/vibrantgio/prism/scrollbar"
 	"github.com/vibrantgio/prism/theme"
 	"github.com/vibrantgio/prism/tokens"
@@ -42,13 +43,14 @@ import (
 )
 
 var pageNames = []string{
-	"Button", "Inputs", "List", "Icon", "Layout", "A11y", "Initial", "Coordination",
+	"Button", "Inputs", "List", "Richtext", "Icon", "Layout", "A11y", "Initial", "Coordination",
 }
 
 const (
 	pageButton int = iota
 	pageInputs
 	pageList
+	pageRichtext
 	pageIcon
 	pageLayout
 	pageA11y
@@ -70,7 +72,7 @@ type gallery struct {
 	win    *app.Window
 	shaper *text.Shaper
 	page   int
-	nav    [8]widget.Clickable
+	nav    [9]widget.Clickable
 
 	// Interactive widgets obtained via rx.First()
 	btnLive       layout.Widget
@@ -88,7 +90,7 @@ type gallery struct {
 	springBtnClicks  int
 
 	// Scroll state — one per page, allocated once so scroll position survives frames.
-	scrollSt [8]*list.State
+	scrollSt [9]*list.State
 
 	// List page: one state per LayoutScrollbar variant so the two lists
 	// scroll independently.
@@ -102,6 +104,13 @@ type gallery struct {
 	sbList  layout.List
 	sbState *scrollbar.State
 	sbItems []string
+
+	// Richtext page: persistent link-interaction state plus the themed style
+	// whose OnLinkClick records the last activated URL.
+	rtState   *richtext.State
+	rtStyle   richtext.Style
+	rtLastURL string
+	rtClicks  int
 
 	// Icon page
 	iconReg   *icon.Registry
@@ -246,6 +255,15 @@ func newGallery(w *app.Window, shaper *text.Shaper) *gallery {
 		g.sbItems[i] = fmt.Sprintf("Fake content row %d of %d", i+1, len(g.sbItems))
 	}
 
+	// Richtext: live link state; OnLinkClick carries gtx per GX.8.
+	g.rtState = richtext.NewState()
+	g.rtStyle = richtext.FromTokens(tokens.DefaultLight, tokens.DefaultTypeScale)
+	g.rtStyle.OnLinkClick = func(_ layout.Context, url string) {
+		g.rtLastURL = url
+		g.rtClicks++
+		w.Invalidate()
+	}
+
 	// Icon registry — register the IVG icon and obtain a render widget from it.
 	g.iconReg = icon.New()
 	g.iconReg.Register("info", icon.FromIVG(actionInfoIVG))
@@ -352,6 +370,8 @@ func (g *gallery) content(gtx layout.Context) layout.Dimensions {
 		return g.pageInputs(gtx)
 	case pageList:
 		return g.pageList(gtx)
+	case pageRichtext:
+		return g.pageRichtext(gtx)
 	case pageIcon:
 		return g.pageIcon(gtx)
 	case pageLayout:
@@ -767,6 +787,106 @@ func (g *gallery) scrollbarDemo(gtx layout.Context) layout.Dimensions {
 				return dims
 			}),
 		)
+	})
+}
+
+// ── Richtext page ─────────────────────────────────────────────────────────────
+
+// richtextSpans is the demo paragraph exercising the span model: regular,
+// bold, italic, monospace, explicit colour, explicit size, and two links.
+func richtextSpans() []richtext.SpanStyle {
+	return []richtext.SpanStyle{
+		{Content: "Richtext lays out "},
+		{Content: "bold", Weight: font.Bold},
+		{Content: ", "},
+		{Content: "italic", Style: font.Italic},
+		{Content: ", "},
+		{Content: "monospace", Typeface: "Go Mono, monospace"},
+		{Content: ", "},
+		{Content: "coloured", Color: tokens.Red.C600},
+		{Content: ", and "},
+		{Content: "resized", Size: 22},
+		{Content: " spans in one wrapped paragraph, with inline links to "},
+		{Content: "gioui.org", URL: "https://gioui.org"},
+		{Content: " and the "},
+		{Content: "vibrantgio design system", URL: "https://github.com/vibrantgio"},
+		{Content: "."},
+	}
+}
+
+func (g *gallery) pageRichtext(gtx layout.Context) layout.Dimensions {
+	return g.scrollPage(gtx, g.scrollSt[pageRichtext], func(gtx layout.Context) layout.Dimensions {
+		staticStyle := richtext.FromTokens(tokens.DefaultLight, tokens.DefaultTypeScale)
+		linkStates := []struct {
+			label string
+			state richtext.RenderState
+		}{
+			{"Idle", richtext.Idle()},
+			{"Hovered (link 0)", richtext.RenderState{HoveredLink: 0, FocusedLink: richtext.NoLink}},
+			{"Focused (link 0)", richtext.RenderState{HoveredLink: richtext.NoLink, FocusedLink: 0}},
+		}
+
+		cs := []layout.FlexChild{
+			g.sectionHeader("Richtext — mixed spans (bold / italic / mono / colour / size / links)"),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return prismlayout.Inset(24).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Max.X = gtx.Dp(unit.Dp(520))
+					return richtext.Render(g.shaper, staticStyle, richtextSpans(), richtext.Idle())(gtx)
+				})
+			}),
+			g.sectionHeader("Richtext — link states (static RenderState)"),
+		}
+		for _, ls := range linkStates {
+			ls := ls
+			cs = append(cs, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return prismlayout.InsetXY(24, 10).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Min.X = gtx.Dp(unit.Dp(160))
+							gtx.Constraints.Max.X = gtx.Dp(unit.Dp(160))
+							return g.label(gtx, ls.label, tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Max.X = gtx.Dp(unit.Dp(400))
+							spans := []richtext.SpanStyle{
+								{Content: "Read the "},
+								{Content: "documentation", URL: "https://gioui.org/doc"},
+								{Content: " for details."},
+							}
+							return richtext.Render(g.shaper, staticStyle, spans, ls.state)(gtx)
+						}),
+					)
+				})
+			}))
+		}
+		cs = append(cs,
+			g.sectionHeader("Richtext — live links (hover for cursor, Tab to focus, click or Space/Enter to activate)"),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return prismlayout.Inset(24).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Max.X = gtx.Dp(unit.Dp(520))
+							return richtext.Layout(gtx, g.rtState, g.shaper, g.rtStyle, richtextSpans())
+						}),
+						layout.Rigid(prismlayout.VSpacer(16)),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							status := "Activated: (none yet — click a link above)"
+							if g.rtLastURL != "" {
+								status = fmt.Sprintf("Activated %d×, last: %s", g.rtClicks, g.rtLastURL)
+							}
+							return g.label(gtx, status, tokens.DefaultLight.OnBackground, unit.Sp(14), font.Font{})
+						}),
+						layout.Rigid(prismlayout.VSpacer(8)),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return g.label(gtx,
+								"richtext.Layout(gtx, state, shaper, style, spans) — OnLinkClick(gtx, url) carries gtx per GX.8.",
+								tokens.DefaultLight.Secondary, unit.Sp(13), font.Font{})
+						}),
+					)
+				})
+			}),
+		)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, cs...)
 	})
 }
 

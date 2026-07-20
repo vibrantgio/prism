@@ -122,6 +122,26 @@ func TestFocusedLinkIsVisuallyDistinct(t *testing.T) {
 	}
 }
 
+// TestStrikethroughIsVisuallyDistinct confirms a strikethrough span renders a
+// visible line through the text: different pixels from the same span without
+// the decoration.
+func TestStrikethroughIsVisuallyDistinct(t *testing.T) {
+	shaper := defaultShaper(t)
+	size := image.Pt(300, 100)
+	style := richtext.FromTokens(tokens.DefaultLight, tokens.DefaultTypeScale)
+
+	plain := golden.Capture(t, size, richtext.Render(shaper, style,
+		[]richtext.SpanStyle{{Content: "deleted text"}}, richtext.Idle()))
+	struck := golden.Capture(t, size, richtext.Render(shaper, style,
+		[]richtext.SpanStyle{{Content: "deleted text", Strikethrough: true}}, richtext.Idle()))
+	if plain == nil || struck == nil {
+		return // headless unavailable; Capture called t.Skip
+	}
+	if n := golden.PixelDiff(plain, struck); n == 0 {
+		t.Error("strikethrough and plain spans render identically; expected line-through pixels to differ")
+	}
+}
+
 // ---- Layout tests ----
 
 func measure(shaper *text.Shaper, style richtext.Style, spans []richtext.SpanStyle, maxWidth int) layout.Dimensions {

@@ -69,6 +69,9 @@ type SpanStyle struct {
 	// URL, when non-empty, marks the span as a hyperlink. Consecutive spans
 	// with the same URL are grouped into a single link for interaction.
 	URL string
+	// Strikethrough draws a horizontal line through the span's glyphs in the
+	// span's text colour (e.g. GFM ~~deleted~~ text).
+	Strikethrough bool
 }
 
 // Font assembles the gio font selector from the span's typeface, slant, and

@@ -40,6 +40,7 @@ type resolvedSpan struct {
 	content string
 	link    int // index in link order; -1 for non-link spans
 	url     string
+	strike  bool
 }
 
 // segment is one laid-out fragment of a span: at most one line's worth of
@@ -53,6 +54,7 @@ type segment struct {
 	ascent int
 	color  color.NRGBA
 	link   int
+	strike bool
 }
 
 // resolve applies the paragraph defaults to every span, groups consecutive
@@ -102,6 +104,7 @@ func resolve(gtx layout.Context, style Style, spans []SpanStyle, rs RenderState)
 			content: s.Content,
 			link:    link,
 			url:     s.URL,
+			strike:  s.Strikethrough,
 		})
 	}
 	return out, nLinks
@@ -165,6 +168,9 @@ func draw(gtx layout.Context, shaper *text.Shaper, style Style, spans []SpanStyl
 			if s.link >= 0 {
 				drawUnderline(gtx, s)
 			}
+			if s.strike {
+				drawStrikethrough(gtx, s)
+			}
 			st.Pop()
 
 			if s.link >= 0 && s.link == rs.FocusedLink {
@@ -210,6 +216,7 @@ func draw(gtx layout.Context, shaper *text.Shaper, style Style, spans []SpanStyl
 			ascent: res.ascent,
 			color:  span.color,
 			link:   span.link,
+			strike: span.strike,
 		})
 		lineWidth += res.width
 
@@ -236,6 +243,19 @@ func draw(gtx layout.Context, shaper *text.Shaper, style Style, spans []SpanStyl
 func drawUnderline(gtx layout.Context, s segment) {
 	th := max(gtx.Dp(1), 1)
 	y := s.ascent + max(gtx.Dp(1), 1)
+	paint.FillShape(gtx.Ops, s.color, clip.Rect{
+		Min: image.Pt(0, y),
+		Max: image.Pt(s.width, y+th),
+	}.Op())
+}
+
+// drawStrikethrough paints a horizontal line through one segment's glyphs, in
+// the segment's text colour, at a quarter of the ascent above the baseline
+// (approximately the middle of the x-height). Called with the segment's origin
+// as the current transform.
+func drawStrikethrough(gtx layout.Context, s segment) {
+	th := max(gtx.Dp(1), 1)
+	y := s.ascent * 3 / 4
 	paint.FillShape(gtx.Ops, s.color, clip.Rect{
 		Min: image.Pt(0, y),
 		Max: image.Pt(s.width, y+th),
